@@ -44,6 +44,39 @@ function stableSuppressionId(targetId: string, kind: string) {
   return `hsp_${createHash("sha256").update(`${targetId}|${kind}`).digest("hex").slice(0, 24)}`;
 }
 
+export function classifyHunterReplyText(input: string): HunterReplyKind {
+  const text = input.normalize("NFKC").replace(/\s+/g, " ").trim().toLowerCase();
+  if (!text) return "question";
+
+  if (/\b(unsubscribe|opt[ -]?out|remove me|stop emailing|do not email|don't email|do not contact|don't contact)\b/i.test(text)) {
+    return "unsubscribe";
+  }
+  if (/\b(out of office|automatic reply|auto[ -]?reply|on leave|on vacation|away until|returning on|back on)\b/i.test(text)) {
+    return "ooo";
+  }
+  if (/\b(next quarter|next month|later this year|not now|circle back|reach out later|follow up later|try me again)\b/i.test(text)) {
+    return "not_now";
+  }
+  if (/\b(not interested|no thanks|no thank you|not relevant|not a fit|please stop|never contact)\b/i.test(text)) {
+    return "negative";
+  }
+  if (/\b(speak with|talk to|contact|reach out to)\b.{0,80}\b(my colleague|our team|the team|instead|responsible for)\b/i.test(text)) {
+    return "referral";
+  }
+  if (/\b(too expensive|no budget|budget issue|already use|already using|not a priority|timing isn't right|timing is not right)\b/i.test(text)) {
+    return "objection";
+  }
+  if (/[?]$/.test(text) || /^(how|what|when|where|why|who|can|could|would|do|does|is|are|will)\b/i.test(text)) {
+    return "question";
+  }
+  if (/\b(yes|interested|send me|send the|let's talk|lets talk|book a|schedule a|meeting|demo|breakdown|sounds good|happy to|open to)\b/i.test(text)) {
+    return "positive";
+  }
+
+  // Unknown genuine replies are routed to a human instead of being auto-followed-up.
+  return "question";
+}
+
 export function routeHunterReply(kind: HunterReplyKind): HunterReplyRoute {
   if (kind === "ooo") {
     return {
