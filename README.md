@@ -37,6 +37,59 @@ No SaaS middleman. No per-seat pricing. No black box.
 
 ---
 
+## Foremention Customer Hunter
+
+This fork adds **Foremention Customer Hunter**, an internal evidence-backed buyer-intent and assisted-outreach layer on top of Linki's existing execution infrastructure.
+
+The operating flow is:
+
+`signal → qualification → evidence research → Foremention mini-audit → draft → human approval → Linki execution → reply routing → opportunity learning`
+
+Customer Hunter surfaces are available at:
+
+- `/hunter` — Buyer Feed ranked by route and evidence freshness.
+- `/hunter/signals` — attributable signal evidence and freshness.
+- `/hunter/research` — research, email/LinkedIn draft generation, and first-touch approval.
+- `/hunter/opportunities` — commercial pipeline and observed conversion metrics.
+
+### Safety and evidence boundaries
+
+- First-touch cold outreach requires explicit human approval before enrollment.
+- Any genuine human reply stops automated follow-up across both email and LinkedIn for that contact.
+- Unsubscribe, complaint, hard bounce, and negative intent create durable suppressions that AI cannot override.
+- Personalized factual claims must trace back to stored evidence or a bounded Foremention mini-audit.
+- The Foremention private mini-audit accepts only 3–5 questions and is server-to-server only.
+- Automated tests and CI use synthetic fixtures and do **not** send real external prospect messages.
+- `paid_customer` cannot be recorded without explicit commercial evidence.
+
+### Customer Hunter environment
+
+Copy `.env.example` and configure the Foremention service boundary plus one supported AI provider:
+
+```env
+FOREMENTION_OUTREACH_URL=https://foremention.com
+FOREMENTION_OUTREACH_SECRET=
+
+HUNTER_AI_PROVIDER=groq
+HUNTER_AI_BASE_URL=https://api.groq.com/openai/v1
+HUNTER_AI_API_KEY=
+HUNTER_AI_MODEL=
+
+HUNTER_RUNNER_INTERVAL_MS=120000
+```
+
+Groq, OpenRouter, OpenAI, or another OpenAI-compatible endpoint can be used through the documented environment variables in `.env.example`.
+
+Verification commands:
+
+```bash
+npm run test:hunter
+npx eslint lib/hunter tests/hunter
+npm run build
+```
+
+---
+
 ## Features
 
 ### 📬 Multichannel Campaigns
