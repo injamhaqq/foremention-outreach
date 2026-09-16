@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from "next";
+import { getDb } from "@/lib/db";
 import { buildResearchBrief, generateResearchSummary, type HunterResearchCompany, type HunterResearchSignal, type HunterResearchTarget } from "@/lib/hunter/research";
 import { hunterAiProviderFromEnv } from "@/lib/hunter/ai";
-import { getHunterRepository } from "@/lib/hunter/repository";
+import { createHunterRepository } from "@/lib/hunter/repository";
 import type { ForementionMiniAuditResult } from "@/lib/hunter/foremention-client";
 
 function object(value: unknown): Record<string, unknown> | null {
@@ -24,7 +25,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const packet = buildResearchBrief({ target, company, signals, miniAudit });
     const shouldSummarize = body.summarize !== false;
     const summary = shouldSummarize ? await generateResearchSummary(packet, hunterAiProviderFromEnv()) : null;
-    const stored = getHunterRepository().saveHunterResearchReport({
+    const stored = createHunterRepository(getDb()).saveHunterResearchReport({
       companyId: company.id,
       targetId: target.id,
       report: { packet, summary },
