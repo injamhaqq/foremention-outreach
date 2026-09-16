@@ -1,8 +1,6 @@
 import { createHash, randomUUID } from "crypto";
 import type Database from "better-sqlite3";
-import { getDb } from "../db";
 import type { HunterQualificationResult, HunterSignalType } from "./types";
-import { ensureHunterSchema } from "./schema";
 
 function stableId(prefix: string, value: string) {
   return `${prefix}_${createHash("sha256").update(value).digest("hex").slice(0, 24)}`;
@@ -62,8 +60,6 @@ export type HunterDraftRecord = HunterDraftWrite & {
 };
 
 export function createHunterRepository(db: Database.Database) {
-  ensureHunterSchema(db);
-
   function upsertHunterSignal(input: HunterSignalWrite): HunterSignalRecord {
     const sourceUrl = normalizeSourceUrl(input.sourceUrl);
     const dedupeKey = `${input.companyId}|${input.type}|${sourceUrl}`;
@@ -128,8 +124,7 @@ export function createHunterRepository(db: Database.Database) {
              evidence_text, observed_at, published_at, expires_at, confidence, score_contribution
       FROM hunter_signals WHERE id = ?
     `).get(id) as Record<string, unknown> | undefined;
-    if (!row) return null;
-    return mapSignal(row);
+    return row ? mapSignal(row) : null;
   }
 
   function mapSignal(row: Record<string, unknown>): HunterSignalRecord {
@@ -240,8 +235,7 @@ export function createHunterRepository(db: Database.Database) {
              first_touch_fingerprint, status
       FROM hunter_message_drafts WHERE first_touch_fingerprint = ?
     `).get(fingerprint) as Record<string, unknown> | undefined;
-    if (!row) return null;
-    return mapDraft(row);
+    return row ? mapDraft(row) : null;
   }
 
   function mapDraft(row: Record<string, unknown>): HunterDraftRecord {
@@ -378,11 +372,4 @@ export function createHunterRepository(db: Database.Database) {
     isTargetSuppressed,
     upsertHunterOpportunity,
   };
-}
-
-let repository: ReturnType<typeof createHunterRepository> | null = null;
-
-export function getHunterRepository() {
-  if (!repository) repository = createHunterRepository(getDb());
-  return repository;
 }
