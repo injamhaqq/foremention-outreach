@@ -30,8 +30,8 @@ jobs:
       - name: Customer Hunter tests
         run: npm run test:hunter
 
-      - name: Lint
-        run: npm run lint
+      - name: Lint Customer Hunter code
+        run: npx eslint lib/hunter tests/hunter
 
       - name: Build
         run: npm run build
