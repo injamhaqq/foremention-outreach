@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import Database from "better-sqlite3";
 import { ensureHunterSchema } from "../../lib/hunter/schema.ts";
-import { applyHunterReplyEvent } from "../../lib/hunter/replies.ts";
+import { applyHunterReplyEvent, classifyHunterReplyText } from "../../lib/hunter/replies.ts";
 
 function makeDb() {
   const db = new Database(":memory:");
@@ -71,4 +71,16 @@ test("OOO is not treated as a genuine human reply and can be rescheduled", () =>
   const rows = db.prepare("SELECT state, next_step_at FROM run_profile_tracks ORDER BY id").all() as Array<{ state: string; next_step_at: string | null }>;
   assert.equal(rows.every((row) => row.state === "in_progress"), true);
   assert.equal(rows.find((row) => row.next_step_at)?.next_step_at, "2026-09-20T09:00:00.000Z");
+});
+
+test("deterministic classifier protects unsubscribe and OOO semantics", () => {
+  assert.equal(classifyHunterReplyText("Please unsubscribe me and stop emailing."), "unsubscribe");
+  assert.equal(classifyHunterReplyText("I am out of office until September 24."), "ooo");
+  assert.equal(classifyHunterReplyText("No thanks, not interested."), "negative");
+});
+
+test("deterministic classifier identifies useful human replies", () => {
+  assert.equal(classifyHunterReplyText("Yes, send me the breakdown and let's talk."), "positive");
+  assert.equal(classifyHunterReplyText("How does this work for a B2B SaaS team?"), "question");
+  assert.equal(classifyHunterReplyText("Circle back next quarter."), "not_now");
 });
