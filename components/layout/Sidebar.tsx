@@ -25,6 +25,7 @@ const LEARNING_PLAYLIST_URL = "https://www.youtube.com/playlist?list=PLBf6xNJOms
 
 const mainNav = [
   { href: "/", label: "Dashboard", icon: RiLayoutGridLine, color: "#5aa2ff", tour: "nav-dashboard" },
+  { href: "/hunter", label: "Customer Hunter", icon: RiCompassLine, color: "#f472b6", tour: "nav-hunter" },
   { href: "/lists", label: "Lists", icon: RiFileList3Line, color: "#32d583", tour: "nav-lists" },
   { href: "/contacts", label: "Contacts", icon: RiContactsLine, color: "#34d399", tour: "nav-contacts" },
   { href: "/companies", label: "Companies", icon: RiBuildingLine, color: "#a78bfa", tour: "nav-companies" },
@@ -99,14 +100,11 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      {/* Icon rail — always visible */}
       <div className="w-13 shrink-0 bg-base-200 border-r border-base-300/40 flex flex-col h-full">
-        {/* Logo */}
         <div className="shrink-0 h-13 flex items-center justify-center border-b border-base-300/40">
-          <Image src="/logo_linki.png" alt="Linki" width={22} height={22} className="rounded-md opacity-80" />
+          <Image src="/logo_linki.png" alt="Foremention Outreach" width={22} height={22} className="rounded-md opacity-80" />
         </div>
 
-        {/* Main nav icons */}
         <nav className="flex-1 py-3 flex flex-col gap-0.5 px-1.5 overflow-hidden">
           {nav.map((item) => {
             const active = isActive(item.href);
@@ -133,14 +131,12 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
           })}
         </nav>
 
-        {/* Update dot */}
         {updateAvailable && (
           <div className="flex justify-center mb-2" title={`v${latestVersion} available`}>
             <RiArrowUpCircleLine size={15} className="text-warning" />
           </div>
         )}
 
-        {/* Bottom icons */}
         <div className="pb-3 border-t border-base-300/40 pt-3 flex flex-col gap-0.5 px-1.5">
           <div className="relative" ref={helpRef}>
             <button
@@ -155,9 +151,7 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
               </span>
             </button>
             {helpOpen && (
-              <div
-                className="absolute left-11 bottom-0 w-48 bg-base-200 border border-base-300/50 rounded-xl shadow-xl py-1.5 flex flex-col z-30"
-              >
+              <div className="absolute left-11 bottom-0 w-48 bg-base-200 border border-base-300/50 rounded-xl shadow-xl py-1.5 flex flex-col z-30">
                 {tourPage && (
                   <button
                     onClick={() => { replayPageTour(tourPage); setHelpOpen(false); }}
@@ -193,10 +187,7 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
                     : "text-base-content/40 hover:text-base-content/70 hover:bg-base-300/40"
                 }`}
               >
-                <span
-                  className="w-6 h-6 rounded-md flex items-center justify-center"
-                  style={{ background: active ? "#a0a0a022" : "transparent" }}
-                >
+                <span className="w-6 h-6 rounded-md flex items-center justify-center" style={{ background: active ? "#a0a0a022" : "transparent" }}>
                   <RiUserSettingsLine size={14} style={{ color: active ? "#a0a0a0" : "currentColor" }} />
                 </span>
               </Link>
@@ -214,19 +205,16 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
         </div>
       </div>
 
-      {/* Hover label panel — overlay, slides in */}
       <div
         className={`absolute left-13 top-0 h-full w-44 bg-base-200 border-r border-base-300/40 shadow-xl flex flex-col transition-all duration-150 ${
           hovered ? "opacity-100 translate-x-0 pointer-events-auto" : "opacity-0 -translate-x-2 pointer-events-none"
         }`}
         style={{ borderRadius: "0 12px 12px 0" }}
       >
-        {/* Logo area */}
         <div className="shrink-0 h-13 flex items-center px-4 border-b border-base-300/40">
-          <span className="text-base-content font-semibold text-sm tracking-wide">Linki</span>
+          <span className="text-base-content font-semibold text-sm tracking-wide">Foremention Outreach</span>
         </div>
 
-        {/* Nav labels */}
         <nav className="flex-1 py-3 flex flex-col gap-0.5 px-2 overflow-hidden">
           {nav.map((item) => {
             const active = isActive(item.href);
@@ -241,10 +229,7 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
                 }`}
               >
                 {active && (
-                  <span
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full"
-                    style={{ background: item.color }}
-                  />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full" style={{ background: item.color }} />
                 )}
                 {item.label}
               </Link>
@@ -252,20 +237,16 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
           })}
         </nav>
 
-        {/* Update banner */}
         {updateAvailable && (
           <div className="mx-2 mb-2 px-3 py-2 rounded-lg bg-warning/10 border border-warning/20">
             <div className="flex items-center gap-1.5 text-warning text-xs font-medium mb-0.5">
               <RiArrowUpCircleLine size={13} />
               Update available
             </div>
-            <p className="text-warning/70 text-[11px] leading-snug">
-              v{latestVersion} is out.
-            </p>
+            <p className="text-warning/70 text-[11px] leading-snug">v{latestVersion} is out.</p>
           </div>
         )}
 
-        {/* Settings + signout labels */}
         <div className="pb-3 border-t border-base-300/40 pt-3 flex flex-col gap-0.5 px-2">
           {(() => {
             const active = isActive("/settings");
@@ -279,10 +260,7 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
                 }`}
               >
                 {active && (
-                  <span
-                    className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full"
-                    style={{ background: "#a0a0a0" }}
-                  />
+                  <span className="absolute left-0 top-1/2 -translate-y-1/2 w-0.5 h-5 rounded-r-full" style={{ background: "#a0a0a0" }} />
                 )}
                 Settings
               </Link>
@@ -296,19 +274,9 @@ export default function Sidebar({ onCollapse }: { onCollapse?: (collapsed: boole
           </button>
         </div>
 
-        {/* Version + branding */}
         <div className="px-4 py-3 border-t border-base-300/40">
-          {currentVersion && (
-            <p className="text-[10px] text-base-content/25 mb-0.5">v{currentVersion}</p>
-          )}
-          <a
-            href="https://opsily.com?utm_source=linki&utm_medium=app&utm_campaign=sidebar"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-[10px] text-base-content/25 hover:text-base-content/50 transition-colors"
-          >
-            Built by opsily.com
-          </a>
+          {currentVersion && <p className="text-[10px] text-base-content/25 mb-0.5">v{currentVersion}</p>}
+          <span className="text-[10px] text-base-content/25">Foremention internal GTM engine</span>
         </div>
       </div>
     </aside>
