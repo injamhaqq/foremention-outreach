@@ -1,5 +1,4 @@
 import type Database from "better-sqlite3";
-import { getDb } from "../db";
 import { ensureHunterSchema } from "./schema";
 import { processPendingHunterEmailReplies, processStampedHunterLinkedInReplies, syncHunterBounceSuppressions } from "./reply-monitor";
 import { qualifyHunterCandidate } from "./qualification";
@@ -155,7 +154,7 @@ function promoteReplyOutcomes(db: Database.Database) {
   return promoted;
 }
 
-export async function runHunterMaintenanceCycle(db: Database.Database = getDb()) {
+export async function runHunterMaintenanceCycle(db: Database.Database) {
   ensureHunterSchema(db);
   const expiredSignals = expireSignals(db);
   const qualificationScoresRefreshed = refreshQualificationScores(db);
@@ -189,7 +188,8 @@ export function ensureHunterRunnerStarted() {
   holder.__forementionHunterRunnerStarted = true;
 
   const execute = () => {
-    void runHunterMaintenanceCycle().catch((error) => console.error("[hunter] maintenance cycle failed:", error));
+    void import("../db").then(({ getDb }) => runHunterMaintenanceCycle(getDb()))
+      .catch((error) => console.error("[hunter] maintenance cycle failed:", error));
   };
   execute();
   const configured = Number(process.env.HUNTER_RUNNER_INTERVAL_MS || DEFAULT_INTERVAL_MS);
