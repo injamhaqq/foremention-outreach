@@ -7,6 +7,7 @@ import { applyHunterReplyEvent } from "../../lib/hunter/replies.ts";
 function makeDb() {
   const db = new Database(":memory:");
   db.exec(`
+    CREATE TABLE companies (id TEXT PRIMARY KEY);
     CREATE TABLE targets (
       id TEXT PRIMARY KEY,
       company_id TEXT,
@@ -24,6 +25,7 @@ function makeDb() {
       error_message TEXT,
       next_step_at TEXT
     );
+    INSERT INTO companies VALUES ('company-1');
     INSERT INTO targets VALUES ('target-1', 'company-1', 'jane@acme.example', NULL, NULL, NULL);
     INSERT INTO run_profiles VALUES ('rp-1', 'run-1', 'target-1');
     INSERT INTO run_profile_tracks VALUES ('rt-li', 'rp-1', 'linkedin', 'in_progress', NULL, NULL);
