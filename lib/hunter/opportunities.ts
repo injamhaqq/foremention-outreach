@@ -73,7 +73,7 @@ export function transitionHunterOpportunity(db: Database.Database, input: {
   if (existing && input.toStage !== "lost") {
     const fromIndex = HUNTER_OPPORTUNITY_STAGES.indexOf(existing.stage);
     const toIndex = HUNTER_OPPORTUNITY_STAGES.indexOf(input.toStage);
-    if (existing.stage === "lost" && input.toStage !== "lost") throw new Error("Lost opportunity must be reopened explicitly.");
+    if (existing.stage === "lost") throw new Error("Lost opportunity must be reopened explicitly.");
     if (toIndex < fromIndex) throw new Error("Opportunity stage cannot move backward.");
     if (!input.allowForwardSkip && toIndex > fromIndex + 1) throw new Error("Opportunity stage transition skips required stages.");
   }
