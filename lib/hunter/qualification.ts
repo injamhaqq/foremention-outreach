@@ -4,7 +4,7 @@ import type {
   HunterQualificationResult,
   HunterRoute,
   HunterSignalInput,
-} from "./types.ts";
+} from "./types";
 
 const STRONG_SIGNAL_TYPES = new Set<HunterSignalInput["type"]>([
   "ai_search_hiring",
