@@ -9,6 +9,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:hunter": "node --experimental-strip-types --experimental-loader ./scripts/resolve-ts-test.mjs --test tests/hunter/*.test.ts",
     "mirror:ee": "node scripts/mirror-ee.js"
   },
   "dependencies": {
