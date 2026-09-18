@@ -3,7 +3,9 @@ import test from "node:test";
 import { createCrawl4AiClient } from "../../lib/hunter/crawl4ai";
 
 test("Crawl4AI client fetches a company page without allowing remote hooks", async () => {
+  const usage: Array<{ provider: string; eventType: string; units: number; unitType: string }> = [];
   const client = createCrawl4AiClient({
+    onUsage: (event) => usage.push(event),
     baseUrl: "http://crawl4ai.internal:11235",
     apiToken: "crawl-token",
     fetchImpl: async (input, init) => {
@@ -26,6 +28,10 @@ test("Crawl4AI client fetches a company page without allowing remote hooks", asy
   const result = await client.crawl("acme.com");
   assert.equal(result.domain, "acme.com");
   assert.match(result.text, /organic growth/i);
+  assert.deepEqual(usage.map((event) => event.eventType), ["crawl_request"]);
+  assert.equal(usage[0].provider, "crawl4ai");
+  assert.equal(usage[0].units, 1);
+  assert.equal(usage[0].unitType, "request");
 });
 
 test("Crawl4AI auth header is omitted only when no API token is configured", async () => {
