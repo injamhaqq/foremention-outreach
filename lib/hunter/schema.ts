@@ -242,6 +242,26 @@ export const HUNTER_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_hunter_autopilot_target_decided
     ON hunter_autopilot_decisions(target_id, decided_at DESC);
 
+  CREATE TABLE IF NOT EXISTS hunter_sales_tasks (
+    id TEXT PRIMARY KEY,
+    company_id TEXT REFERENCES companies(id) ON DELETE CASCADE,
+    target_id TEXT REFERENCES targets(id) ON DELETE CASCADE,
+    dedupe_key TEXT NOT NULL UNIQUE,
+    task_type TEXT NOT NULL CHECK(task_type IN ('human_reply','follow_up_later','call','manual_review')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','completed','cancelled')),
+    priority TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('high','normal','low')),
+    reason TEXT NOT NULL,
+    source_reply_id TEXT,
+    due_at TEXT,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_hunter_sales_tasks_status_due
+    ON hunter_sales_tasks(status, due_at, priority, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_hunter_sales_tasks_target
+    ON hunter_sales_tasks(target_id, status);
+
   CREATE TABLE IF NOT EXISTS hunter_channel_health_snapshots (
     id TEXT PRIMARY KEY,
     channel TEXT NOT NULL CHECK(channel IN ('email','linkedin')),
