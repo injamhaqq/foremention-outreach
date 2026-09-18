@@ -418,7 +418,7 @@ export async function runHunterAcquisitionCycle(
 
   let aiProvider: HunterAiProvider;
   try {
-    aiProvider = options.aiProvider ?? hunterAiProviderFromEnv(usageReporter);
+    aiProvider = options.aiProvider ?? hunterAiProviderFromEnv(usageReporter, env);
   } catch {
     return {
       discovery,
