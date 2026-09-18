@@ -96,6 +96,20 @@ npm run test:e2e:hunter
 
 The CI gate also starts the built production container and requires `/healthz` to pass before browser acceptance.
 
+For the low-cash-cost production architecture, provider choices, backup profile, and
+tools intentionally rejected as unnecessary or unsafe, see
+[`docs/FREE_PRODUCTION_STACK.md`](docs/FREE_PRODUCTION_STACK.md).
+
+Optional off-host SQLite backup can be enabled after configuring the documented
+`LITESTREAM_*` variables:
+
+```bash
+docker compose --profile backup up -d
+```
+
+Keep exactly one Litestream replicator for this database/replica path and test a
+restore before treating backup as production-ready.
+
 ---
 
 ## Features
