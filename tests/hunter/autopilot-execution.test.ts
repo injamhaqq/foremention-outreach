@@ -127,3 +127,25 @@ test("guarded auto only enrolls a healthy channel and never bypasses suppression
   assert.equal(blocked.action, "blocked");
   assert.equal((db.prepare("SELECT COUNT(*) c FROM run_profiles").get() as {c:number}).c, 0);
 });
+
+
+test("unverified email is never approved for email outreach even when LinkedIn is healthy", async () => {
+  const { db, signal } = makeDb();
+  db.prepare("UPDATE targets SET email_status = 'unverified' WHERE id = 'target-1'").run();
+  const provider = {
+    generateStructured: async () => ({
+      body: "Evidence-backed note.",
+      evidenceIds: [signal.id],
+    }),
+  };
+  const result = await processHunterAutopilotTarget(db, {
+    companyId: "company-1", targetId: "target-1", mode: "guarded_auto", runId: "run-1",
+    emailHealthy: true, linkedinHealthy: true, aiProvider: provider,
+    now: new Date("2026-09-18T12:05:00.000Z"),
+  });
+  assert.equal(result.allowedChannels.email, false);
+  assert.equal(result.allowedChannels.linkedin, true);
+  assert.deepEqual(result.drafts.map((draft) => draft.channel), ["linkedin"]);
+  const tracks = db.prepare("SELECT track FROM run_profile_tracks").all() as Array<{track:string}>;
+  assert.deepEqual(tracks.map((row) => row.track), ["linkedin"]);
+});
