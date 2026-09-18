@@ -210,6 +210,13 @@ export default function HunterBuyerFeedPage() {
               <div className="rounded-lg border border-base-300/50 bg-base-300/20 px-3 py-2">
                 <div className="text-base-content/35 text-[10px] uppercase tracking-wider">Known spend today</div>
                 <div className="text-base-content font-semibold mt-0.5">${feed.operations.costs.knownUsd.toFixed(2)}</div>
+                {Object.keys(feed.operations.costs.unitsByType).length > 0 && (
+                  <div className="text-[9px] text-base-content/35 mt-0.5">
+                    {Object.entries(feed.operations.costs.unitsByType)
+                      .map(([unit, value]) => `${value.toLocaleString()} ${unit}`)
+                      .join(" · ")}
+                  </div>
+                )}
                 {feed.operations.costs.unknownCostEvents > 0 && (
                   <div className="text-[9px] text-warning/70 mt-0.5">
                     {feed.operations.costs.unknownCostEvents} usage event{feed.operations.costs.unknownCostEvents === 1 ? "" : "s"} with unknown price
