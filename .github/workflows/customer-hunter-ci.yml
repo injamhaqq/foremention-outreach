@@ -31,7 +31,7 @@ jobs:
         run: npm run test:hunter
 
       - name: Lint Customer Hunter code
-        run: npx eslint lib/hunter tests/hunter
+        run: npx eslint lib/hunter tests/hunter tests/e2e playwright.config.ts pages/hunter pages/api/hunter components/hunter
 
       - name: Build
         run: npm run build
