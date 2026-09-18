@@ -13,6 +13,20 @@ export type HunterProviderUsageEvent = {
   occurredAt?: string;
 };
 
+export type HunterUsageReporter = (event: HunterProviderUsageEvent) => void;
+
+export function reportHunterUsage(
+  reporter: HunterUsageReporter | undefined,
+  event: HunterProviderUsageEvent,
+) {
+  if (!reporter) return;
+  try {
+    reporter(event);
+  } catch {
+    // Usage telemetry must never break acquisition execution.
+  }
+}
+
 function finiteNonNegative(value: unknown) {
   const numeric = Number(value);
   return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
