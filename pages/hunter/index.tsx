@@ -1,4 +1,5 @@
 import Head from "next/head";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import BuyerCard, { type BuyerCardItem } from "@/components/hunter/BuyerCard";
 import type { HunterRoute } from "@/lib/hunter/types";
