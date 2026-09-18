@@ -5,8 +5,9 @@ import { processHunterAutopilotTarget } from "./autopilot-execution";
 import { configuredBuyerProviders, type HunterBuyerProvider } from "./buyer-providers";
 import { evaluateEmailChannelHealth, evaluateLinkedInChannelHealth, type HunterChannelHealth } from "./channel-health";
 import { hunterGtmConfigFromEnv } from "./config";
+import { createCrawl4AiClient } from "./crawl4ai";
 import type { HunterDiscoveryProvider } from "./discovery";
-import { runHunterDiscoveryCycle } from "./gtm-cycle";
+import { runHunterDiscoveryCycle, type HunterCrawlClient } from "./gtm-cycle";
 import { ensureHunterSchema } from "./schema";
 import { configuredDiscoveryProviders } from "./source-providers";
 
@@ -34,6 +35,7 @@ export type HunterAcquisitionCycleOptions = {
   forceDiscovery?: boolean;
   discoveryProviders?: HunterDiscoveryProvider[];
   buyerProviders?: HunterBuyerProvider[];
+  crawlClient?: HunterCrawlClient | null;
   aiProvider?: HunterAiProvider;
   channelHealth?: { emailHealthy: boolean; linkedinHealthy: boolean };
 };
@@ -344,6 +346,11 @@ export async function runHunterAcquisitionCycle(
   const config = hunterGtmConfigFromEnv(env);
   const discoveryProviders = options.discoveryProviders ?? configuredDiscoveryProviders(env);
   const buyerProviders = options.buyerProviders ?? configuredBuyerProviders(env);
+  const crawlClient = options.crawlClient !== undefined
+    ? options.crawlClient
+    : config.crawl4aiUrl
+      ? createCrawl4AiClient({ baseUrl: config.crawl4aiUrl })
+      : null;
 
   let discovery: Awaited<ReturnType<typeof runHunterDiscoveryCycle>> | null = null;
   let discoverySkippedReason: string | null = null;
@@ -360,6 +367,7 @@ export async function runHunterAcquisitionCycle(
       config,
       discoveryProviders,
       buyerProviders,
+      crawlClient,
       now,
     });
   }
