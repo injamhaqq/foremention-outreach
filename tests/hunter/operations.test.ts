@@ -72,7 +72,7 @@ test("operations snapshot reports truthful today, pipeline, health and cost metr
     INSERT INTO hunter_cost_events
       (id,company_id,target_id,provider,event_type,amount_usd,units,metadata_json,occurred_at,created_at)
     VALUES
-      ('cost1','c1','t1','apollo','enrichment',0.08,1,'{}','2026-09-18T14:10:00.000Z','2026-09-18T14:10:00.000Z');
+      ('cost1','c1','t1','apollo','enrichment',0.08,1,'{"costKnown":true,"unitType":"request"}','2026-09-18T14:10:00.000Z','2026-09-18T14:10:00.000Z');
 
     INSERT INTO hunter_sales_tasks
       (id,company_id,target_id,dedupe_key,task_type,status,priority,reason,source_reply_id,due_at,metadata_json,created_at,updated_at)
@@ -100,6 +100,9 @@ test("operations snapshot reports truthful today, pipeline, health and cost metr
   assert.equal(snapshot.health.channels.linkedin.healthy, false);
   assert.deepEqual(snapshot.health.channels.linkedin.reasons, ["checkpoint_detected"]);
   assert.equal(snapshot.costs.todayUsd, 0.08);
+  assert.equal(snapshot.costs.knownUsd, 0.08);
+  assert.equal(snapshot.costs.unknownCostEvents, 0);
+  assert.equal(snapshot.costs.unitsByType.request, 1);
   assert.equal(snapshot.autopilot.approvalRequiredToday, 1);
   assert.equal(snapshot.salesTasks.pending, 1);
   assert.equal(snapshot.salesTasks.highPriority, 1);
