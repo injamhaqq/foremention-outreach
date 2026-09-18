@@ -23,7 +23,9 @@ export type HunterBuyerProvider = {
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
 function clean(value: unknown, max = 500) {
-  return typeof value === "string" ? value.normalize("NFKC").replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim().slice(0, max) : "";
+  return typeof value === "string"
+    ? value.normalize("NFKC").replace(/[\u0000-\u001F\u007F]/g, " ").replace(/\s+/g, " ").trim().slice(0, max)
+    : "";
 }
 
 function normalizedDomain(value: string) {
@@ -49,6 +51,11 @@ function normalizeLinkedIn(value: unknown) {
 function normalizeEmail(value: unknown) {
   const email = clean(value, 320).toLowerCase();
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ? email : null;
+}
+
+function normalizeEmailStatus(value: unknown) {
+  const status = clean(value, 120).toLowerCase();
+  return status || null;
 }
 
 function confidence(value: unknown, fallback = 0.7) {
@@ -108,6 +115,27 @@ export async function runBuyerProviders(
   };
 }
 
+function apolloCandidate(person: Record<string, unknown>, fallback?: Record<string, unknown>): HunterBuyerCandidate | null {
+  const fullName = clean(person.name)
+    || [clean(person.first_name), clean(person.last_name)].filter(Boolean).join(" ")
+    || clean(fallback?.name)
+    || [clean(fallback?.first_name), clean(fallback?.last_name)].filter(Boolean).join(" ");
+  const role = clean(person.title) || clean(fallback?.title);
+  if (!fullName || !role) return null;
+  const email = normalizeEmail(person.email);
+  const emailStatus = normalizeEmailStatus(person.email_status);
+  return {
+    fullName,
+    role,
+    email,
+    emailStatus,
+    linkedinUrl: normalizeLinkedIn(person.linkedin_url) || normalizeLinkedIn(fallback?.linkedin_url),
+    sourceName: "apollo",
+    providerPersonId: clean(person.id) || clean(fallback?.id) || null,
+    confidence: emailStatus === "verified" ? 0.95 : email ? 0.86 : 0.78,
+  };
+}
+
 export function createApolloBuyerProvider(input: {
   apiKey: string;
   fetchImpl?: FetchLike;
@@ -116,33 +144,45 @@ export function createApolloBuyerProvider(input: {
   return {
     id: "apollo",
     async findBuyers({ domain, titles, limit }) {
-      const url = new URL("https://api.apollo.io/api/v1/mixed_people/api_search");
-      url.searchParams.append("q_organization_domains_list[]", normalizedDomain(domain));
-      for (const title of titles) url.searchParams.append("person_titles[]", title);
-      for (const seniority of ["c_suite", "vp", "head", "director"]) url.searchParams.append("person_seniorities[]", seniority);
-      url.searchParams.set("include_similar_titles", "true");
-      url.searchParams.set("per_page", String(Math.min(100, limit)));
-      const response = await fetchImpl(url, {
+      const searchUrl = new URL("https://api.apollo.io/api/v1/mixed_people/api_search");
+      searchUrl.searchParams.append("q_organization_domains_list[]", normalizedDomain(domain));
+      for (const title of titles) searchUrl.searchParams.append("person_titles[]", title);
+      for (const seniority of ["c_suite", "vp", "head", "director"]) searchUrl.searchParams.append("person_seniorities[]", seniority);
+      searchUrl.searchParams.set("include_similar_titles", "true");
+      searchUrl.searchParams.set("per_page", String(Math.min(100, limit)));
+      const searchResponse = await fetchImpl(searchUrl, {
         method: "POST",
         headers: { "content-type": "application/json", "x-api-key": input.apiKey },
       });
-      if (!response.ok) throw new Error(`Apollo people search failed with HTTP ${response.status}.`);
-      const payload = await response.json() as { people?: Array<Record<string, unknown>> };
-      return (payload.people ?? []).slice(0, limit).flatMap<HunterBuyerCandidate>((person) => {
-        const fullName = clean(person.name) || [clean(person.first_name), clean(person.last_name)].filter(Boolean).join(" ");
-        const role = clean(person.title);
-        if (!fullName || !role) return [];
-        return [{
-          fullName,
-          role,
-          email: normalizeEmail(person.email),
-          emailStatus: clean(person.email_status) || null,
-          linkedinUrl: normalizeLinkedIn(person.linkedin_url),
-          sourceName: "apollo",
-          providerPersonId: clean(person.id) || null,
-          confidence: person.email_status === "verified" ? 0.95 : 0.78,
-        }];
-      });
+      if (!searchResponse.ok) throw new Error(`Apollo people search failed with HTTP ${searchResponse.status}.`);
+      const searchPayload = await searchResponse.json() as { people?: Array<Record<string, unknown>> };
+      const selected = (searchPayload.people ?? []).slice(0, limit);
+      const buyers: HunterBuyerCandidate[] = [];
+
+      for (const person of selected) {
+        const id = clean(person.id);
+        let candidate = apolloCandidate(person);
+        if (id) {
+          const matchUrl = new URL("https://api.apollo.io/api/v1/people/match");
+          matchUrl.searchParams.set("id", id);
+          matchUrl.searchParams.set("reveal_personal_emails", "false");
+          matchUrl.searchParams.set("reveal_phone_number", "false");
+          try {
+            const matchResponse = await fetchImpl(matchUrl, {
+              method: "POST",
+              headers: { "content-type": "application/json", "x-api-key": input.apiKey },
+            });
+            if (matchResponse.ok) {
+              const matchPayload = await matchResponse.json() as { person?: Record<string, unknown> };
+              if (matchPayload.person) candidate = apolloCandidate(matchPayload.person, person) ?? candidate;
+            }
+          } catch {
+            // Keep search-only buyer for LinkedIn if enrichment is temporarily unavailable.
+          }
+        }
+        if (candidate) buyers.push(candidate);
+      }
+      return buyers;
     },
   };
 }
@@ -194,6 +234,31 @@ export function createHunterDomainBuyerProvider(input: {
   };
 }
 
+function prospeoCandidate(person: Record<string, unknown>, fallback?: Record<string, unknown>): HunterBuyerCandidate | null {
+  const fullName = clean(person.full_name)
+    || [clean(person.first_name), clean(person.last_name)].filter(Boolean).join(" ")
+    || clean(fallback?.full_name)
+    || [clean(fallback?.first_name), clean(fallback?.last_name)].filter(Boolean).join(" ");
+  const role = clean(person.current_job_title) || clean(fallback?.current_job_title);
+  if (!fullName || !role) return null;
+
+  const emailObject = person.email && typeof person.email === "object"
+    ? person.email as Record<string, unknown>
+    : null;
+  const email = normalizeEmail(emailObject?.email ?? person.email);
+  const emailStatus = normalizeEmailStatus(emailObject?.status ?? person.email_status);
+  return {
+    fullName,
+    role,
+    email,
+    emailStatus,
+    linkedinUrl: normalizeLinkedIn(person.linkedin_url) || normalizeLinkedIn(fallback?.linkedin_url),
+    sourceName: "prospeo",
+    providerPersonId: clean(person.person_id) || clean(fallback?.person_id) || null,
+    confidence: emailStatus === "verified" ? 0.95 : email ? 0.86 : 0.82,
+  };
+}
+
 export function createProspeoBuyerProvider(input: {
   apiKey: string;
   fetchImpl?: FetchLike;
@@ -202,7 +267,7 @@ export function createProspeoBuyerProvider(input: {
   return {
     id: "prospeo",
     async findBuyers({ domain, titles, limit }) {
-      const response = await fetchImpl("https://api.prospeo.io/search-person", {
+      const searchResponse = await fetchImpl("https://api.prospeo.io/search-person", {
         method: "POST",
         headers: { "content-type": "application/json", "X-KEY": input.apiKey },
         body: JSON.stringify({
@@ -213,30 +278,45 @@ export function createProspeoBuyerProvider(input: {
           },
         }),
       });
-      const payload = await response.json().catch(() => null) as {
+      const searchPayload = await searchResponse.json().catch(() => null) as {
         error?: boolean;
         error_code?: string;
         results?: Array<{ person?: Record<string, unknown> }>;
       } | null;
-      if (!response.ok || payload?.error) {
-        throw new Error(`Prospeo people search failed: ${payload?.error_code || `HTTP ${response.status}`}.`);
+      if (!searchResponse.ok || searchPayload?.error) {
+        throw new Error(`Prospeo people search failed: ${searchPayload?.error_code || `HTTP ${searchResponse.status}`}.`);
       }
-      return (payload?.results ?? []).slice(0, limit).flatMap<HunterBuyerCandidate>((entry) => {
-        const person = entry.person ?? {};
-        const fullName = clean(person.full_name) || [clean(person.first_name), clean(person.last_name)].filter(Boolean).join(" ");
-        const role = clean(person.current_job_title);
-        if (!fullName || !role) return [];
-        return [{
-          fullName,
-          role,
-          email: normalizeEmail((person.email as Record<string, unknown> | null)?.email),
-          emailStatus: clean((person.email as Record<string, unknown> | null)?.status) || null,
-          linkedinUrl: normalizeLinkedIn(person.linkedin_url),
-          sourceName: "prospeo",
-          providerPersonId: clean(person.person_id) || null,
-          confidence: 0.82,
-        }];
-      });
+
+      const buyers: HunterBuyerCandidate[] = [];
+      for (const entry of (searchPayload?.results ?? []).slice(0, limit)) {
+        const searchPerson = entry.person ?? {};
+        const personId = clean(searchPerson.person_id);
+        let candidate = prospeoCandidate(searchPerson);
+
+        if (personId) {
+          try {
+            const enrichResponse = await fetchImpl("https://api.prospeo.io/enrich-person", {
+              method: "POST",
+              headers: { "content-type": "application/json", "X-KEY": input.apiKey },
+              body: JSON.stringify({
+                only_verified_email: true,
+                data: { person_id: personId },
+              }),
+            });
+            const enrichPayload = await enrichResponse.json().catch(() => null) as {
+              error?: boolean;
+              person?: Record<string, unknown>;
+            } | null;
+            if (enrichResponse.ok && !enrichPayload?.error && enrichPayload?.person) {
+              candidate = prospeoCandidate(enrichPayload.person, searchPerson) ?? candidate;
+            }
+          } catch {
+            // Preserve the search result for LinkedIn outreach if email enrichment misses.
+          }
+        }
+        if (candidate) buyers.push(candidate);
+      }
+      return buyers;
     },
   };
 }
