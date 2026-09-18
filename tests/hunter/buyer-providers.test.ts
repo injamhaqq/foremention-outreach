@@ -202,3 +202,47 @@ test("buyer waterfall deduplicates the same person and preserves the best contac
   assert.equal(result.buyers[0].email, "jane@acme.com");
   assert.equal(result.buyers[0].confidence, 0.95);
 });
+
+
+test("buyer waterfall keeps going when selected buyers still lack verified work email", async () => {
+  let secondCalls = 0;
+  const first = {
+    id: "linkedin-only",
+    findBuyers: async () => [
+      {
+        fullName: "Jane Doe", role: "Head of SEO", email: null, emailStatus: null,
+        linkedinUrl: "https://linkedin.com/in/jane", sourceName: "linkedin-only", providerPersonId: "1", confidence: 0.9,
+      },
+      {
+        fullName: "John Doe", role: "VP Marketing", email: null, emailStatus: null,
+        linkedinUrl: "https://linkedin.com/in/john", sourceName: "linkedin-only", providerPersonId: "2", confidence: 0.9,
+      },
+    ],
+  };
+  const second = {
+    id: "verified-email",
+    findBuyers: async () => {
+      secondCalls += 1;
+      return [
+        {
+          fullName: "Jane Doe", role: "Head of SEO", email: "jane@acme.com", emailStatus: "verified",
+          linkedinUrl: "https://linkedin.com/in/jane", sourceName: "verified-email", providerPersonId: "x1", confidence: 0.95,
+        },
+        {
+          fullName: "John Doe", role: "VP Marketing", email: "john@acme.com", emailStatus: "verified",
+          linkedinUrl: "https://linkedin.com/in/john", sourceName: "verified-email", providerPersonId: "x2", confidence: 0.95,
+        },
+      ];
+    },
+  };
+
+  const result = await runBuyerProviders([first, second], {
+    domain: "acme.com",
+    titles: ["Head of SEO", "VP Marketing"],
+    limit: 2,
+  });
+
+  assert.equal(secondCalls, 1);
+  assert.deepEqual(result.buyers.map((buyer) => buyer.email).sort(), ["jane@acme.com", "john@acme.com"]);
+  assert.equal(result.buyers.every((buyer) => buyer.emailStatus === "verified"), true);
+});
