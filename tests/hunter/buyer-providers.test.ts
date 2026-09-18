@@ -9,8 +9,10 @@ import {
 
 test("Apollo buyer provider searches decision makers then enriches only selected people", async () => {
   const calls: string[] = [];
+  const usage: Array<{ provider: string; eventType: string; units: number; unitType: string }> = [];
   const provider = createApolloBuyerProvider({
     apiKey: "apollo-test",
+    onUsage: (event) => usage.push(event),
     fetchImpl: async (input) => {
       const url = new URL(String(input));
       calls.push(url.pathname);
@@ -53,6 +55,8 @@ test("Apollo buyer provider searches decision makers then enriches only selected
   assert.equal(results[0].emailStatus, "verified");
   assert.equal(results[0].linkedinUrl, "https://linkedin.com/in/jane");
   assert.equal(results[0].sourceName, "apollo");
+  assert.deepEqual(usage.map((event) => event.eventType), ["people_search_request", "person_enrichment_request"]);
+  assert.equal(usage.every((event) => event.provider === "apollo" && event.units === 1 && event.unitType === "request"), true);
 });
 
 test("Apollo keeps a discovered buyer reachable on LinkedIn if enrichment has no email", async () => {
