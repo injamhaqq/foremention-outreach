@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { isFirecrawlDiscoveryConfigured } from "./source-providers";
 
 function value(env: NodeJS.ProcessEnv, key: string) {
   return String(env[key] || "").trim();
@@ -54,7 +55,8 @@ export function evaluateHunterReadiness(
 ) {
   const discoveryReasons: string[] = [];
   const discoveryEnabled = value(env, "HUNTER_DISCOVERY_ENABLED").toLowerCase() !== "false";
-  const discoveryProviderConfigured = any(value(env, "SEARXNG_URL"), value(env, "FIRECRAWL_API_URL"));
+  const firecrawlConfigured = isFirecrawlDiscoveryConfigured(env);
+  const discoveryProviderConfigured = Boolean(value(env, "SEARXNG_URL")) || firecrawlConfigured;
   if (!discoveryEnabled) discoveryReasons.push("discovery_disabled");
   if (!discoveryProviderConfigured) discoveryReasons.push("no_discovery_provider");
 
@@ -94,7 +96,7 @@ export function evaluateHunterReadiness(
     reasons: discoveryReasons,
     providers: {
       searxng: Boolean(value(env, "SEARXNG_URL")),
-      firecrawl: Boolean(value(env, "FIRECRAWL_API_URL")),
+      firecrawl: firecrawlConfigured,
       crawl4ai: Boolean(value(env, "CRAWL4AI_URL")),
     },
   };
