@@ -8,6 +8,7 @@ import { normalizeDiscoveryCandidate } from "./discovery";
 import { createHunterDiscoveryStore } from "./discovery-store";
 import { qualifyHunterCandidate } from "./qualification";
 import { createHunterRepository } from "./repository";
+import { HUNTER_OPPORTUNITY_STAGES, transitionHunterOpportunity, type HunterOpportunityStage } from "./opportunities";
 import { classifyDiscoveryEvidence } from "./signal-classifier";
 import { normalizeHunterSignal, signalContribution } from "./signals";
 
@@ -35,6 +36,40 @@ export type HunterDiscoveryCycleOptions = {
   crawlClient?: HunterCrawlClient | null;
   now?: Date;
 };
+
+function ensureQualifiedOpportunity(
+  db: Database.Database,
+  companyId: string,
+  targetId: string,
+) {
+  const existing = db.prepare(
+    "SELECT stage FROM hunter_opportunities WHERE company_id = ? AND target_id = ? LIMIT 1"
+  ).get(companyId, targetId) as { stage: string } | undefined;
+  if (!existing) {
+    transitionHunterOpportunity(db, {
+      companyId,
+      targetId,
+      toStage: "qualified",
+      allowForwardSkip: true,
+      nextAction: "Research evidence-backed first touch",
+    });
+    return;
+  }
+  if (existing.stage === "identified") {
+    transitionHunterOpportunity(db, {
+      companyId,
+      targetId,
+      toStage: "qualified",
+      nextAction: "Research evidence-backed first touch",
+    });
+    return;
+  }
+  if (!HUNTER_OPPORTUNITY_STAGES.includes(existing.stage as HunterOpportunityStage)) {
+    return;
+  }
+  // A later stage is commercial history. Rediscovery can refresh evidence/score but
+  // must never move that opportunity backward.
+}
 
 const DEFAULT_BUYER_TITLES = [
   "CMO",
@@ -212,12 +247,7 @@ export async function runHunterDiscoveryCycle(
           repository.saveHunterScore({ companyId, targetId, result, computedAt: nowIso });
           if (result.outreachReady) {
             outreachReady += 1;
-            repository.upsertHunterOpportunity({
-              companyId,
-              targetId,
-              stage: "identified",
-              nextAction: "Research evidence-backed first touch",
-            });
+            ensureQualifiedOpportunity(db, companyId, targetId);
           }
         }
       }
