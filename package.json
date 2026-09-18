@@ -10,7 +10,8 @@
     "start": "next start",
     "lint": "eslint",
     "test:hunter": "node --experimental-strip-types --experimental-loader ./scripts/resolve-ts-test.mjs --test tests/hunter/*.test.ts",
-    "mirror:ee": "node scripts/mirror-ee.js"
+    "mirror:ee": "node scripts/mirror-ee.js",
+    "test:e2e:hunter": "playwright test tests/e2e/customer-hunter.spec.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
