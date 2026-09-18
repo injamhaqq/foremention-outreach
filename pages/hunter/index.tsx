@@ -111,10 +111,18 @@ export default function HunterBuyerFeedPage() {
               Intent buyers, evidence, research, and multichannel cold outreach in one operating view.
             </p>
           </div>
-          <button onClick={() => void findBuyersNow()} disabled={loading || discovering} className="btn btn-sm btn-primary">
-            {discovering ? <span className="loading loading-spinner loading-xs" /> : null}
-            {discovering ? "Finding buyers…" : "Find buyers now"}
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            <Link href="/hunter/tasks" className="btn btn-sm btn-outline">
+              Sales tasks
+              {feed?.operations?.salesTasks.pending ? (
+                <span className="badge badge-sm badge-error">{feed.operations.salesTasks.pending}</span>
+              ) : null}
+            </Link>
+            <button onClick={() => void findBuyersNow()} disabled={loading || discovering} className="btn btn-sm btn-primary">
+              {discovering ? <span className="loading loading-spinner loading-xs" /> : null}
+              {discovering ? "Finding buyers…" : "Find buyers now"}
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
@@ -138,7 +146,7 @@ export default function HunterBuyerFeedPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-7 gap-2">
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
               <Metric label="Accounts monitored" value={feed.operations.today.accountsMonitored} detail="Seen today" />
               <Metric label="New signals" value={feed.operations.today.newSignals} detail="Captured today" />
               <Metric label="Buyers discovered" value={feed.operations.today.buyersDiscovered} detail="New buyer provenance" />
@@ -146,6 +154,7 @@ export default function HunterBuyerFeedPage() {
               <Metric label="Waiting approval" value={feed.operations.today.messagesWaitingApproval} detail="Draft first touches" />
               <Metric label="Replies" value={feed.operations.today.replies} detail="Classified today" />
               <Metric label="Positive replies" value={feed.operations.today.positiveReplies} detail="Human-positive today" />
+              <Metric label="Sales tasks" value={feed.operations.salesTasks.pending} detail={`${feed.operations.salesTasks.highPriority} high priority`} />
             </div>
 
             <div className="mt-3 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 text-xs">
