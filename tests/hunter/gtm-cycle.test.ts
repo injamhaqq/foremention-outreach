@@ -173,3 +173,50 @@ test("promising companies get Crawl4AI enrichment before qualification", async (
   const signal = db.prepare("SELECT type FROM hunter_signals ORDER BY created_at DESC LIMIT 1").get() as { type: string };
   assert.equal(signal.type, "ai_search_hiring");
 });
+
+
+test("rediscovery never regresses an opportunity that already advanced beyond qualified", async () => {
+  const db = makeDb();
+  const discoveryProviders = [{
+    id: "fake-search",
+    search: async () => [{
+      name: "Acme",
+      domain: "acme.com",
+      sourceUrl: "https://acme.com/jobs/seo",
+      sourceName: "Acme careers",
+      evidenceText: "Acme is a B2B SaaS platform hiring a Head of SEO to own AI Overviews and generative search.",
+    }],
+  }];
+  const buyerProviders = [{
+    id: "fake-buyers",
+    findBuyers: async () => [{
+      fullName: "Jane Doe",
+      role: "Head of SEO",
+      email: "jane@acme.com",
+      emailStatus: "verified",
+      linkedinUrl: "https://linkedin.com/in/jane",
+      sourceName: "fake-buyers",
+      providerPersonId: "jane-1",
+      confidence: 0.99,
+    }],
+  }];
+  const config = {
+    discoveryEnabled: true,
+    discoveryQueries: ["AI search SaaS"],
+    discoveryIntervalMs: 1,
+    limitPerQuery: 10,
+    maxBuyersPerCompany: 3,
+    autopilotMode: "assisted" as const,
+    defaultRunId: null,
+    crawl4aiUrl: null,
+    autoCrawlCompany: false,
+    maxCompaniesPerCycle: 10,
+  };
+
+  await runHunterDiscoveryCycle(db, { config, discoveryProviders, buyerProviders, now: new Date("2026-09-18T12:00:00.000Z") });
+  db.prepare("UPDATE hunter_opportunities SET stage = 'contacted'").run();
+
+  await runHunterDiscoveryCycle(db, { config, discoveryProviders, buyerProviders, now: new Date("2026-09-18T13:00:00.000Z") });
+  const opportunity = db.prepare("SELECT stage FROM hunter_opportunities LIMIT 1").get() as { stage: string };
+  assert.equal(opportunity.stage, "contacted");
+});
