@@ -28,7 +28,7 @@ jobs:
 
       - name: Refresh security-sensitive production dependencies
         run: |
-          npm install --package-lock-only --save-exact \
+          npm install --package-lock-only --save-exact --legacy-peer-deps \
             next@16.3.5 \
             next-auth@4.24.15 \
             nodemailer@10.0.10 \
