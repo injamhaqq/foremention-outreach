@@ -52,6 +52,7 @@ export default function HunterBuyerFeedPage() {
   const [feed, setFeed] = useState<FeedResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [discovering, setDiscovering] = useState(false);
+  const [canaryRunning, setCanaryRunning] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<"all" | HunterRoute>("all");
   const [query, setQuery] = useState("");
@@ -83,6 +84,26 @@ export default function HunterBuyerFeedPage() {
       setError(err instanceof Error ? err.message : "Buyer discovery could not be started.");
     } finally {
       setDiscovering(false);
+    }
+  }, [refresh]);
+
+  const runAssistedCanary = useCallback(async () => {
+    if (!window.confirm("Run the hard-capped assisted production canary? It can use live providers and create review drafts, but it cannot auto-send first touches.")) return;
+    setCanaryRunning(true);
+    setError("");
+    try {
+      const response = await fetch("/api/hunter/canary", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirmation: "RUN_ASSISTED_CANARY" }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error || "Assisted canary could not be run.");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Assisted canary could not be run.");
+    } finally {
+      setCanaryRunning(false);
     }
   }, [refresh]);
 
@@ -121,7 +142,18 @@ export default function HunterBuyerFeedPage() {
                 <span className="badge badge-sm badge-error">{feed.operations.salesTasks.pending}</span>
               ) : null}
             </Link>
-            <button onClick={() => void findBuyersNow()} disabled={loading || discovering} className="btn btn-sm btn-primary">
+            {feed?.readiness?.canary.enabled && (
+              <button
+                onClick={() => void runAssistedCanary()}
+                disabled={loading || discovering || canaryRunning || !feed.readiness.fullyReady}
+                className="btn btn-sm btn-warning btn-outline"
+                title={feed.readiness.fullyReady ? "Runs a hard-capped assisted canary with no auto-send" : "Resolve readiness blockers first"}
+              >
+                {canaryRunning ? <span className="loading loading-spinner loading-xs" /> : null}
+                {canaryRunning ? "Running canary…" : "Run assisted canary"}
+              </button>
+            )}
+            <button onClick={() => void findBuyersNow()} disabled={loading || discovering || canaryRunning} className="btn btn-sm btn-primary">
               {discovering ? <span className="loading loading-spinner loading-xs" /> : null}
               {discovering ? "Finding buyers…" : "Find buyers now"}
             </button>
