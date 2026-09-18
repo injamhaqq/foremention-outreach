@@ -6,6 +6,26 @@ function normalizeBaseUrl(value: string) {
   return value.trim().replace(/\/+$/, "");
 }
 
+export function isFirecrawlDiscoveryConfigured(env: NodeJS.ProcessEnv = process.env) {
+  const baseUrl = String(env.FIRECRAWL_API_URL || "").trim();
+  if (!baseUrl) return false;
+
+  let hostname = "";
+  try {
+    const url = new URL(baseUrl);
+    if (!["http:", "https:"].includes(url.protocol)) return false;
+    hostname = url.hostname.toLowerCase();
+  } catch {
+    return false;
+  }
+
+  const isFirecrawlCloud = hostname === "api.firecrawl.dev" || hostname.endsWith(".firecrawl.dev");
+  if (isFirecrawlCloud) return Boolean(String(env.FIRECRAWL_API_KEY || "").trim());
+
+  // Self-hosted Firecrawl can be deployed without an API key.
+  return true;
+}
+
 function domainFromUrl(value: string) {
   try {
     return new URL(value).hostname.toLowerCase().replace(/^www\./, "");
@@ -95,10 +115,10 @@ export function configuredDiscoveryProviders(env: NodeJS.ProcessEnv = process.en
   if (env.SEARXNG_URL?.trim()) {
     providers.push(createSearxngProvider({ baseUrl: env.SEARXNG_URL }));
   }
-  if (env.FIRECRAWL_API_URL?.trim()) {
+  if (isFirecrawlDiscoveryConfigured(env)) {
     providers.push(createFirecrawlProvider({
-      baseUrl: env.FIRECRAWL_API_URL,
-      apiKey: env.FIRECRAWL_API_KEY,
+      baseUrl: String(env.FIRECRAWL_API_URL || "").trim(),
+      apiKey: env.FIRECRAWL_API_KEY?.trim() || undefined,
     }));
   }
   return providers;
