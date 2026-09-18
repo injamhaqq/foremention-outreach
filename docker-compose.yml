@@ -26,3 +26,20 @@ services:
       resources:
         limits:
           cpus: "1.5"
+
+  sqlite-backup:
+    # Optional off-host disaster recovery. Enable only after configuring the
+    # LITESTREAM_* variables and keep exactly one active replicator.
+    profiles: ["backup"]
+    image: litestream/litestream:0.5.17
+    command: ["replicate", "-config", "/etc/litestream.yml"]
+    env_file:
+      - .env.local
+    volumes:
+      - ./data:/data
+      - ./ops/litestream-r2.yml.example:/etc/litestream.yml:ro
+    depends_on:
+      outreach:
+        condition: service_healthy
+    restart: unless-stopped
+
