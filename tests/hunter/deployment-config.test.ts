@@ -7,5 +7,5 @@ test("docker compose ships Foremention Outreach code rather than upstream Linki 
   const compose = readFileSync(resolve(process.cwd(), "docker-compose.yml"), "utf8");
   assert.match(compose, /build:\s*\n\s*context:\s*\./);
   assert.doesNotMatch(compose, /moaljumaa\/linki/i);
-  assert.match(compose, /LINKI_DB_PATH=\/data\/linki\.db/);
+  assert.match(compose, /LINKI_DB_PATH:\s*\/data\/linki\.db/);
 });
