@@ -1,3 +1,5 @@
+import { reportHunterUsage, type HunterUsageReporter } from "./costs";
+
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
 function base(value: string) {
@@ -25,6 +27,7 @@ function extractText(value: unknown): string {
 export function createCrawl4AiClient(input: {
   baseUrl: string;
   apiToken?: string;
+  onUsage?: HunterUsageReporter;
   fetchImpl?: FetchLike;
   timeoutMs?: number;
 }) {
@@ -44,6 +47,13 @@ export function createCrawl4AiClient(input: {
           // Do not forward executable hooks/config from external discovery data.
           body: JSON.stringify({ urls: [url.toString().replace(/\/$/, "")] }),
           signal: controller.signal,
+        });
+        reportHunterUsage(input.onUsage, {
+          provider: "crawl4ai",
+          eventType: "crawl_request",
+          units: 1,
+          unitType: "request",
+          metadata: { status: response.status, ok: response.ok },
         });
         if (!response.ok) throw new Error(`Crawl4AI failed with HTTP ${response.status}.`);
         const payload = await response.json() as Record<string, unknown>;
