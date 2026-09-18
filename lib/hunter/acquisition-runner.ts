@@ -5,6 +5,7 @@ import { processHunterAutopilotTarget } from "./autopilot-execution";
 import { configuredBuyerProviders, type HunterBuyerProvider } from "./buyer-providers";
 import { evaluateEmailChannelHealth, evaluateLinkedInChannelHealth, type HunterChannelHealth } from "./channel-health";
 import { hunterGtmConfigFromEnv } from "./config";
+import { recordHunterCostEvent, reportHunterUsage, type HunterUsageReporter } from "./costs";
 import { createCrawl4AiClient } from "./crawl4ai";
 import type { HunterDiscoveryProvider } from "./discovery";
 import { runHunterDiscoveryCycle, type HunterCrawlClient } from "./gtm-cycle";
@@ -40,6 +41,7 @@ export type HunterAcquisitionCycleOptions = {
   crawlClient?: HunterCrawlClient | null;
   miniAuditRequester?: HunterMiniAuditRequester | null;
   aiProvider?: HunterAiProvider;
+  usageReporter?: HunterUsageReporter;
   channelHealth?: { emailHealthy: boolean; linkedinHealthy: boolean };
 };
 
@@ -346,9 +348,11 @@ export async function runHunterAcquisitionCycle(
   ensureHunterSchema(db);
   const env = options.env ?? process.env;
   const now = options.now ?? new Date();
+  const usageReporter: HunterUsageReporter = options.usageReporter
+    ?? ((event) => recordHunterCostEvent(db, event));
   const config = hunterGtmConfigFromEnv(env);
-  const discoveryProviders = options.discoveryProviders ?? configuredDiscoveryProviders(env);
-  const buyerProviders = options.buyerProviders ?? configuredBuyerProviders(env);
+  const discoveryProviders = options.discoveryProviders ?? configuredDiscoveryProviders(env, usageReporter);
+  const buyerProviders = options.buyerProviders ?? configuredBuyerProviders(env, usageReporter);
   const crawlClient = options.crawlClient !== undefined
     ? options.crawlClient
     : config.crawl4aiUrl
@@ -357,10 +361,25 @@ export async function runHunterAcquisitionCycle(
   const miniAuditRequester = options.miniAuditRequester !== undefined
     ? options.miniAuditRequester
     : env.FOREMENTION_OUTREACH_SECRET?.trim()
-      ? async (input: Parameters<HunterMiniAuditRequester>[0]) => requestForementionMiniAudit(input, {
-          baseUrl: env.FOREMENTION_OUTREACH_URL,
-          secret: env.FOREMENTION_OUTREACH_SECRET,
-        })
+      ? async (input: Parameters<HunterMiniAuditRequester>[0]) => {
+          let ok = false;
+          try {
+            const result = await requestForementionMiniAudit(input, {
+              baseUrl: env.FOREMENTION_OUTREACH_URL,
+              secret: env.FOREMENTION_OUTREACH_SECRET,
+            });
+            ok = true;
+            return result;
+          } finally {
+            reportHunterUsage(usageReporter, {
+              provider: "foremention",
+              eventType: "mini_audit_request",
+              units: 1,
+              unitType: "request",
+              metadata: { questionCount: input.questions.length, ok },
+            });
+          }
+        }
       : null;
 
   let discovery: Awaited<ReturnType<typeof runHunterDiscoveryCycle>> | null = null;
@@ -396,7 +415,7 @@ export async function runHunterAcquisitionCycle(
 
   let aiProvider: HunterAiProvider;
   try {
-    aiProvider = options.aiProvider ?? hunterAiProviderFromEnv();
+    aiProvider = options.aiProvider ?? hunterAiProviderFromEnv(usageReporter);
   } catch {
     return {
       discovery,
