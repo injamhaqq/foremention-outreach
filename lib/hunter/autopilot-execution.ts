@@ -5,6 +5,7 @@ import { enrollApprovedHunterDraft } from "./approval";
 import { evaluateAutopilotDecision, type HunterAutopilotMode } from "./autopilot";
 import { generateHunterDraft } from "./drafts";
 import { createHunterRepository } from "./repository";
+import { runHunterForementionMiniAudit, type HunterMiniAuditRequester } from "./mini-audit";
 import { buildResearchBrief, type HunterResearchSignal } from "./research";
 import type { HunterRoute } from "./types";
 
@@ -107,6 +108,7 @@ export async function processHunterAutopilotTarget(
     emailHealthy: boolean;
     linkedinHealthy: boolean;
     aiProvider: HunterAiProvider;
+    miniAuditRequester?: HunterMiniAuditRequester;
     now?: Date;
   },
 ) {
@@ -151,6 +153,28 @@ export async function processHunterAutopilotTarget(
     return { ...decision, drafts: [] as Array<{ id: string; channel: "email" | "linkedin" }> };
   }
 
+  let miniAudit = null;
+  let miniAuditError: string | null = null;
+  if (input.miniAuditRequester) {
+    try {
+      const result = await runHunterForementionMiniAudit(db, {
+        company: { id: company.id, name: company.name, domain: company.domain },
+        targetId: input.targetId,
+        signals,
+        aiProvider: input.aiProvider,
+        requester: input.miniAuditRequester,
+        now,
+      });
+      miniAudit = result.audit;
+    } catch (error) {
+      miniAuditError = error instanceof Error ? error.message : String(error);
+      console.warn(
+        `[hunter] Foremention mini-audit failed company=${input.companyId} target=${input.targetId}:`,
+        miniAuditError,
+      );
+    }
+  }
+
   const packet = buildResearchBrief({
     target: {
       id: target.id,
@@ -161,6 +185,7 @@ export async function processHunterAutopilotTarget(
     },
     company: { id: company.id, name: company.name, domain: company.domain },
     signals,
+    miniAudit,
   });
   if (!packet.evidence.length) {
     return { action: "blocked" as const, allowedChannels: decision.allowedChannels, reasons: ["no_research_evidence"], drafts: [] };
@@ -168,7 +193,7 @@ export async function processHunterAutopilotTarget(
   repository.saveHunterResearchReport({
     companyId: input.companyId,
     targetId: input.targetId,
-    report: { packet, mode: input.mode },
+    report: { packet, mode: input.mode, miniAuditError },
     evidenceIds: packet.evidence.map((item) => item.id),
     confidence: Math.min(1, packet.evidence.length / 4),
   });
