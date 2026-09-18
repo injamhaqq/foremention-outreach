@@ -83,7 +83,7 @@ export function createOpenAICompatibleHunterProvider(config: OpenAICompatibleCon
         const totalTokens = Number.isFinite(reportedTotal) && reportedTotal > 0
           ? reportedTotal
           : Math.max(0, promptTokens) + Math.max(0, completionTokens);
-        const reportedCost = Number(body?.usage?.cost);
+        const reportedCost = typeof body?.usage?.cost === "number" ? body.usage.cost : Number.NaN;
         reportHunterUsage(config.onUsage, {
           provider: config.providerId?.trim() || "ai",
           eventType: "chat_completion",
