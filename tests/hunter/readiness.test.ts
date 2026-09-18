@@ -65,3 +65,20 @@ test("readiness reports concrete blockers instead of silently appearing idle", (
   assert.equal(result.execution.reasons.includes("no_outreach_channel"), true);
   assert.equal(result.execution.reasons.includes("default_run_not_configured"), true);
 });
+
+
+test("Firecrawl cloud URL without an API key does not count as a usable discovery provider", () => {
+  const db = new Database(":memory:");
+  db.exec(`
+    CREATE TABLE accounts (id TEXT PRIMARY KEY, is_authenticated INTEGER);
+    CREATE TABLE email_accounts (id TEXT PRIMARY KEY, is_verified INTEGER);
+    CREATE TABLE runs (id TEXT PRIMARY KEY, status TEXT);
+  `);
+  const result = evaluateHunterReadiness(db, {
+    HUNTER_DISCOVERY_ENABLED: "true",
+    FIRECRAWL_API_URL: "https://api.firecrawl.dev",
+  } as NodeJS.ProcessEnv);
+  assert.equal(result.discovery.ready, false);
+  assert.equal(result.discovery.providers.firecrawl, false);
+  assert.equal(result.discovery.reasons.includes("no_discovery_provider"), true);
+});
