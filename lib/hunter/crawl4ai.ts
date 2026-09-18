@@ -24,6 +24,7 @@ function extractText(value: unknown): string {
 
 export function createCrawl4AiClient(input: {
   baseUrl: string;
+  apiToken?: string;
   fetchImpl?: FetchLike;
   timeoutMs?: number;
 }) {
@@ -35,9 +36,11 @@ export function createCrawl4AiClient(input: {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), Math.max(1, Math.min(input.timeoutMs ?? 30_000, 60_000)));
       try {
+        const headers: Record<string, string> = { "content-type": "application/json" };
+        if (input.apiToken?.trim()) headers.authorization = `Bearer ${input.apiToken.trim()}`;
         const response = await fetchImpl(`${baseUrl}/crawl`, {
           method: "POST",
-          headers: { "content-type": "application/json" },
+          headers,
           // Do not forward executable hooks/config from external discovery data.
           body: JSON.stringify({ urls: [url.toString().replace(/\/$/, "")] }),
           signal: controller.signal,
