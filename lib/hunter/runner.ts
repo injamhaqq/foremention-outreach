@@ -99,7 +99,20 @@ function refreshQualificationScores(db: Database.Database) {
     if (result.outreachReady) {
       const existing = db.prepare("SELECT stage FROM hunter_opportunities WHERE company_id = ? AND target_id = ? LIMIT 1")
         .get(candidate.company_id, candidate.target_id) as { stage: HunterOpportunityStage } | undefined;
-      if (!existing) transitionHunterOpportunity(db, { companyId: candidate.company_id, targetId: candidate.target_id, toStage: "identified" });
+      if (!existing) {
+        transitionHunterOpportunity(db, {
+          companyId: candidate.company_id,
+          targetId: candidate.target_id,
+          toStage: "qualified",
+          allowForwardSkip: true,
+        });
+      } else if (existing.stage === "identified") {
+        transitionHunterOpportunity(db, {
+          companyId: candidate.company_id,
+          targetId: candidate.target_id,
+          toStage: "qualified",
+        });
+      }
     }
   }
   return scored;
