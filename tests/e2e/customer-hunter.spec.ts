@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "playwright/test";
 
 const email = `hunter-e2e-${Date.now()}@example.com`;
 const password = "HunterE2E-Pass-2026!";
