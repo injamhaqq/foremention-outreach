@@ -85,3 +85,22 @@ test("Firecrawl cloud URL without an API key does not count as a usable discover
   assert.equal(result.discovery.providers.firecrawl, false);
   assert.equal(result.discovery.reasons.includes("no_discovery_provider"), true);
 });
+
+
+test("readiness accepts a local Ollama model without a paid-provider API key", () => {
+  const db = makeDb();
+  const result = evaluateHunterReadiness(db, {
+    HUNTER_DISCOVERY_ENABLED: "true",
+    SEARXNG_URL: "http://searxng:8080",
+    HUNTER_API_KEY: "hunter-key",
+    HUNTER_AI_PROVIDER: "ollama",
+    OLLAMA_BASE_URL: "http://ollama:11434/v1",
+    OLLAMA_MODEL: "qwen3:8b",
+    FOREMENTION_OUTREACH_SECRET: "shared-secret",
+    HUNTER_AUTOPILOT_MODE: "assisted",
+    HUNTER_DEFAULT_RUN_ID: "run-1",
+  } as NodeJS.ProcessEnv);
+
+  assert.equal(result.ai.ready, true);
+  assert.equal(result.ai.provider, "ollama");
+});
