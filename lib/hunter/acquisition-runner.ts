@@ -8,6 +8,8 @@ import { hunterGtmConfigFromEnv } from "./config";
 import { createCrawl4AiClient } from "./crawl4ai";
 import type { HunterDiscoveryProvider } from "./discovery";
 import { runHunterDiscoveryCycle, type HunterCrawlClient } from "./gtm-cycle";
+import { requestForementionMiniAudit } from "./foremention-client";
+import type { HunterMiniAuditRequester } from "./mini-audit";
 import { ensureHunterSchema } from "./schema";
 import { configuredDiscoveryProviders } from "./source-providers";
 
@@ -36,6 +38,7 @@ export type HunterAcquisitionCycleOptions = {
   discoveryProviders?: HunterDiscoveryProvider[];
   buyerProviders?: HunterBuyerProvider[];
   crawlClient?: HunterCrawlClient | null;
+  miniAuditRequester?: HunterMiniAuditRequester | null;
   aiProvider?: HunterAiProvider;
   channelHealth?: { emailHealthy: boolean; linkedinHealthy: boolean };
 };
@@ -351,6 +354,14 @@ export async function runHunterAcquisitionCycle(
     : config.crawl4aiUrl
       ? createCrawl4AiClient({ baseUrl: config.crawl4aiUrl, apiToken: env.CRAWL4AI_API_TOKEN })
       : null;
+  const miniAuditRequester = options.miniAuditRequester !== undefined
+    ? options.miniAuditRequester
+    : env.FOREMENTION_OUTREACH_SECRET?.trim()
+      ? async (input) => requestForementionMiniAudit(input, {
+          baseUrl: env.FOREMENTION_OUTREACH_URL,
+          secret: env.FOREMENTION_OUTREACH_SECRET,
+        })
+      : null;
 
   let discovery: Awaited<ReturnType<typeof runHunterDiscoveryCycle>> | null = null;
   let discoverySkippedReason: string | null = null;
@@ -414,6 +425,7 @@ export async function runHunterAcquisitionCycle(
         emailHealthy,
         linkedinHealthy,
         aiProvider,
+        miniAuditRequester: miniAuditRequester ?? undefined,
         now,
       });
       autopilotTargetsProcessed += 1;
