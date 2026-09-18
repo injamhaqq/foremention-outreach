@@ -107,3 +107,69 @@ test("source failure is recorded while other sources still feed the pipeline", a
   assert.equal(statuses.some((row) => row.status === "failed"), true);
   assert.equal(statuses.some((row) => row.status === "success"), true);
 });
+
+
+test("promising companies get Crawl4AI enrichment before qualification", async () => {
+  const db = makeDb();
+  let crawlCalls = 0;
+  const result = await runHunterDiscoveryCycle(db, {
+    config: {
+      discoveryEnabled: true,
+      discoveryQueries: ["B2B SaaS"],
+      discoveryIntervalMs: 1,
+      limitPerQuery: 10,
+      maxBuyersPerCompany: 3,
+      autopilotMode: "assisted",
+      defaultRunId: null,
+      crawl4aiUrl: "http://crawl4ai:11235",
+      autoCrawlCompany: true,
+      maxCompaniesPerCycle: 10,
+    },
+    discoveryProviders: [{
+      id: "fake-search",
+      search: async () => [{
+        name: "Acme",
+        domain: "acme.com",
+        sourceUrl: "https://example.com/acme",
+        sourceName: "search",
+        evidenceText: "Acme is a B2B SaaS platform.",
+      }],
+    }],
+    buyerProviders: [{
+      id: "fake-buyers",
+      findBuyers: async () => [{
+        fullName: "Jane Doe",
+        role: "Head of SEO",
+        email: "jane@acme.com",
+        emailStatus: "verified",
+        linkedinUrl: "https://linkedin.com/in/jane",
+        sourceName: "fake-buyers",
+        providerPersonId: "jane-1",
+        confidence: 0.99,
+      }],
+    }],
+    crawlClient: {
+      crawl: async (url: string) => {
+        crawlCalls += 1;
+        assert.equal(url, "https://acme.com");
+        return {
+          domain: "acme.com",
+          url: "https://acme.com",
+          text: "We are hiring a Head of SEO to own AI Overviews and generative search.",
+        };
+      },
+    },
+    now: new Date("2026-09-18T12:00:00.000Z"),
+  });
+
+  assert.equal(crawlCalls, 1);
+  assert.equal(result.crawlsCompleted, 1);
+  assert.equal(result.crawlErrors, 0);
+  assert.equal(result.outreachReady, 1);
+  const evidence = db.prepare(
+    "SELECT source_name, evidence_text FROM hunter_discovery_evidence WHERE company_id = (SELECT id FROM companies WHERE domain = 'acme.com') ORDER BY source_name"
+  ).all() as Array<{ source_name: string; evidence_text: string }>;
+  assert.equal(evidence.some((row) => row.source_name === "crawl4ai" && row.evidence_text.includes("AI Overviews")), true);
+  const signal = db.prepare("SELECT type FROM hunter_signals ORDER BY created_at DESC LIMIT 1").get() as { type: string };
+  assert.equal(signal.type, "ai_search_hiring");
+});
