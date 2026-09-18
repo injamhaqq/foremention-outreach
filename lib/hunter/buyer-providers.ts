@@ -1,3 +1,5 @@
+import { hasVerifiedWorkEmail } from "./contact-verification";
+
 export type HunterBuyerSearchInput = {
   domain: string;
   titles: string[];
@@ -106,7 +108,15 @@ export async function runBuyerProviders(
     } catch (error) {
       errors.push({ providerId: provider.id, error: error instanceof Error ? error.message : String(error) });
     }
-    if (found.size >= limit) break;
+    const selected = [...found.values()]
+      .sort((a, b) => b.confidence - a.confidence)
+      .slice(0, limit);
+    if (
+      selected.length >= limit
+      && selected.every((buyer) => hasVerifiedWorkEmail(buyer.email, buyer.emailStatus))
+    ) {
+      break;
+    }
   }
 
   return {
