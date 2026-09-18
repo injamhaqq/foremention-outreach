@@ -59,3 +59,72 @@ test("learning metrics expose numerators and denominators rather than causal cla
   assert.equal(typeof metrics.paidCustomerRate.denominator, "number");
   assert.equal(metrics.paidCustomerRate.denominator, metrics.totalOpportunities);
 });
+
+
+test("paid pilot and customer are distinct commercial stages and both require evidence", () => {
+  const db = makeDb();
+  transitionHunterOpportunity(db, {
+    companyId: "company-1", targetId: "target-1", toStage: "pilot_active", allowForwardSkip: true,
+  });
+
+  assert.throws(
+    () => transitionHunterOpportunity(db, {
+      companyId: "company-1", targetId: "target-1", toStage: "paid_pilot", allowForwardSkip: true,
+    }),
+    /commercial evidence/i,
+  );
+
+  const paidPilot = transitionHunterOpportunity(db, {
+    companyId: "company-1",
+    targetId: "target-1",
+    toStage: "paid_pilot",
+    allowForwardSkip: true,
+    commercialEvidence: [{ type: "payment", reference: "pilot-invoice-1", amountUsd: 500 }],
+  });
+  assert.equal(paidPilot.stage, "paid_pilot");
+
+  assert.throws(
+    () => transitionHunterOpportunity(db, {
+      companyId: "company-1", targetId: "target-1", toStage: "customer",
+    }),
+    /commercial evidence/i,
+  );
+
+  const customer = transitionHunterOpportunity(db, {
+    companyId: "company-1",
+    targetId: "target-1",
+    toStage: "customer",
+    commercialEvidence: [{ type: "contract", reference: "msa-1" }],
+  });
+  assert.equal(customer.stage, "customer");
+
+  const outcomes = db.prepare(
+    "SELECT outcome_type FROM hunter_outcomes ORDER BY occurred_at, outcome_type"
+  ).all() as Array<{ outcome_type: string }>;
+  assert.equal(outcomes.some((row) => row.outcome_type === "paid_pilot"), true);
+  assert.equal(outcomes.some((row) => row.outcome_type === "customer"), true);
+});
+
+test("canonical pipeline includes qualified, paid pilot, customer, and expansion", () => {
+  const db = makeDb();
+  transitionHunterOpportunity(db, { companyId: "company-1", targetId: "target-1", toStage: "identified" });
+  transitionHunterOpportunity(db, { companyId: "company-1", targetId: "target-1", toStage: "qualified" });
+  transitionHunterOpportunity(db, { companyId: "company-1", targetId: "target-1", toStage: "contacted" });
+  transitionHunterOpportunity(db, {
+    companyId: "company-1", targetId: "target-1", toStage: "paid_pilot", allowForwardSkip: true,
+    commercialEvidence: [{ type: "payment", reference: "pilot-invoice-2" }],
+  });
+  transitionHunterOpportunity(db, {
+    companyId: "company-1", targetId: "target-1", toStage: "customer",
+    commercialEvidence: [{ type: "contract", reference: "msa-2" }],
+  });
+  const expanded = transitionHunterOpportunity(db, {
+    companyId: "company-1", targetId: "target-1", toStage: "expansion",
+    commercialEvidence: [{ type: "contract", reference: "expansion-1" }],
+  });
+  assert.equal(expanded.stage, "expansion");
+
+  const metrics = aggregateHunterOutcomeMetrics(db);
+  assert.equal(metrics.paidPilots, 1);
+  assert.equal(metrics.customers, 1);
+});
