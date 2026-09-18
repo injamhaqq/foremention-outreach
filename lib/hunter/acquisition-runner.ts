@@ -349,7 +349,7 @@ export async function runHunterAcquisitionCycle(
   const crawlClient = options.crawlClient !== undefined
     ? options.crawlClient
     : config.crawl4aiUrl
-      ? createCrawl4AiClient({ baseUrl: config.crawl4aiUrl })
+      ? createCrawl4AiClient({ baseUrl: config.crawl4aiUrl, apiToken: env.CRAWL4AI_API_TOKEN })
       : null;
 
   let discovery: Awaited<ReturnType<typeof runHunterDiscoveryCycle>> | null = null;
