@@ -16,9 +16,11 @@ test("SearXNG provider converts search results into attributable discovery candi
 });
 
 test("Firecrawl provider converts search API results into attributable candidates", async () => {
+  const usage: Array<{ provider: string; eventType: string; units: number; unitType: string }> = [];
   const provider = createFirecrawlProvider({
     baseUrl: "https://api.firecrawl.dev",
     apiKey: "test",
+    onUsage: (event) => usage.push(event),
     fetchImpl: async (_input, init) => {
       assert.equal(init?.method, "POST");
       return new Response(JSON.stringify({
@@ -31,6 +33,10 @@ test("Firecrawl provider converts search API results into attributable candidate
   assert.equal(results[0].domain, "beta.example.com");
   assert.equal(results[0].sourceName, "firecrawl");
   assert.match(results[0].evidenceText, /generative search/i);
+  assert.deepEqual(usage.map((event) => event.eventType), ["search_request"]);
+  assert.equal(usage[0].provider, "firecrawl");
+  assert.equal(usage[0].units, 1);
+  assert.equal(usage[0].unitType, "request");
 });
 
 
