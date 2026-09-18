@@ -87,6 +87,30 @@ export async function runHunterForementionMiniAudit(
 ) {
   const now = input.now ?? new Date();
   const maxAgeMs = Math.max(60_000, input.maxAgeMs ?? 7 * 24 * 60 * 60 * 1000);
+
+  // Mini-audits are account-level evidence. Reuse a fresh successful audit across
+  // the 2–3 buyers we may pursue at the same company so we do not multiply LLM
+  // measurement cost simply because the buying committee has multiple people.
+  const recent = db.prepare(`
+    SELECT id, result_json, observed_at
+    FROM hunter_mini_audits
+    WHERE company_id = ? AND status = 'success' AND observed_at IS NOT NULL
+    ORDER BY datetime(observed_at) DESC, datetime(updated_at) DESC
+    LIMIT 1
+  `).get(input.company.id) as { id: string; result_json: string | null; observed_at: string | null } | undefined;
+  if (recent?.observed_at) {
+    const observedAt = Date.parse(recent.observed_at);
+    const parsed = parseStoredResult(recent.result_json);
+    if (parsed && Number.isFinite(observedAt) && now.getTime() - observedAt <= maxAgeMs) {
+      return {
+        audit: parsed,
+        auditId: recent.id,
+        reused: true,
+        questions: parsed.questions.map((item) => item.question).slice(0, 5),
+      };
+    }
+  }
+
   const questions = await generateHunterMiniAuditQuestions({
     company: input.company,
     signals: input.signals,
