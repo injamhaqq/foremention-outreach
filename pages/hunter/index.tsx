@@ -208,8 +208,13 @@ export default function HunterBuyerFeedPage() {
                 <div className="text-base-content font-semibold mt-0.5">{feed.operations.health.sourceFailures24h.toLocaleString()}</div>
               </div>
               <div className="rounded-lg border border-base-300/50 bg-base-300/20 px-3 py-2">
-                <div className="text-base-content/35 text-[10px] uppercase tracking-wider">Tracked cost today</div>
-                <div className="text-base-content font-semibold mt-0.5">${feed.operations.costs.todayUsd.toFixed(2)}</div>
+                <div className="text-base-content/35 text-[10px] uppercase tracking-wider">Known spend today</div>
+                <div className="text-base-content font-semibold mt-0.5">${feed.operations.costs.knownUsd.toFixed(2)}</div>
+                {feed.operations.costs.unknownCostEvents > 0 && (
+                  <div className="text-[9px] text-warning/70 mt-0.5">
+                    {feed.operations.costs.unknownCostEvents} usage event{feed.operations.costs.unknownCostEvents === 1 ? "" : "s"} with unknown price
+                  </div>
+                )}
               </div>
               <div className="rounded-lg border border-base-300/50 bg-base-300/20 px-3 py-2">
                 <div className="text-base-content/35 text-[10px] uppercase tracking-wider">Autopilot</div>
