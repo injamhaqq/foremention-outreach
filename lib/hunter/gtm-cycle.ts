@@ -24,10 +24,15 @@ export type HunterGtmCycleConfig = {
   maxCompaniesPerCycle: number;
 };
 
+export type HunterCrawlClient = {
+  crawl(domainOrUrl: string): Promise<{ domain: string; url: string; text: string }>;
+};
+
 export type HunterDiscoveryCycleOptions = {
   config: HunterGtmCycleConfig;
   discoveryProviders: HunterDiscoveryProvider[];
   buyerProviders: HunterBuyerProvider[];
+  crawlClient?: HunterCrawlClient | null;
   now?: Date;
 };
 
@@ -47,13 +52,34 @@ const DEFAULT_BUYER_TITLES = [
   "AEO Lead",
 ];
 
+function classifyCandidateEvidence(
+  candidate: { provenance: Array<{ sourceUrl: string; sourceName: string; evidenceText: string }> },
+  observedAt: string,
+) {
+  return candidate.provenance.flatMap((provenance) =>
+    classifyDiscoveryEvidence({
+      sourceUrl: provenance.sourceUrl,
+      sourceName: provenance.sourceName,
+      evidenceText: provenance.evidenceText,
+      observedAt,
+    }).map((signal) => normalizeHunterSignal(signal))
+  );
+}
+
 export async function runHunterDiscoveryCycle(
   db: Database.Database,
   options: HunterDiscoveryCycleOptions,
 ) {
   const { config } = options;
   if (!config.discoveryEnabled) {
-    return { companiesDiscovered: 0, buyersDiscovered: 0, outreachReady: 0, sourceErrors: 0 };
+    return {
+      companiesDiscovered: 0,
+      buyersDiscovered: 0,
+      outreachReady: 0,
+      sourceErrors: 0,
+      crawlsCompleted: 0,
+      crawlErrors: 0,
+    };
   }
   const now = options.now ?? new Date();
   const nowIso = now.toISOString();
@@ -64,6 +90,8 @@ export async function runHunterDiscoveryCycle(
   let buyersDiscovered = 0;
   let outreachReady = 0;
   let sourceErrors = 0;
+  let crawlsCompleted = 0;
+  let crawlErrors = 0;
 
   for (const query of config.discoveryQueries) {
     if (processedCompanies.size >= config.maxCompaniesPerCycle) break;
@@ -97,21 +125,49 @@ export async function runHunterDiscoveryCycle(
         if (processedCompanies.has(companyId)) continue;
         processedCompanies.add(companyId);
 
-        const evidenceText = candidate.provenance.map((item) => item.evidenceText).join(" ");
-        const fit = inferHunterCompanyFit({
+        let evidenceText = candidate.provenance.map((item) => item.evidenceText).join(" ");
+        let fit = inferHunterCompanyFit({
           companyName: candidate.name,
           domain: candidate.domain,
           evidenceText,
         });
+        let normalizedSignals = classifyCandidateEvidence(candidate, nowIso);
 
-        const normalizedSignals = candidate.provenance.flatMap((provenance) =>
-          classifyDiscoveryEvidence({
-            sourceUrl: provenance.sourceUrl,
-            sourceName: provenance.sourceName,
-            evidenceText: provenance.evidenceText,
-            observedAt: nowIso,
-          }).map((signal) => normalizeHunterSignal(signal))
+        const shouldCrawl = Boolean(
+          options.crawlClient
+          && config.autoCrawlCompany
+          && config.crawl4aiUrl
+          && (fit.b2bSoftware || fit.organicMotion || normalizedSignals.length > 0)
         );
+        if (shouldCrawl) {
+          const crawlRun = store.startSourceRun({ providerId: "crawl4ai", query: candidate.domain });
+          try {
+            const crawled = await options.crawlClient!.crawl(`https://${candidate.domain}`);
+            candidate.provenance.push({
+              sourceUrl: crawled.url,
+              sourceName: "crawl4ai",
+              evidenceText: crawled.text.slice(0, 4_000),
+            });
+            store.upsertCandidate({ ...candidate, query });
+            store.finishSourceRun(crawlRun.id, { status: "success", candidateCount: 1 });
+            crawlsCompleted += 1;
+
+            evidenceText = candidate.provenance.map((item) => item.evidenceText).join(" ");
+            fit = inferHunterCompanyFit({
+              companyName: candidate.name,
+              domain: candidate.domain,
+              evidenceText,
+            });
+            normalizedSignals = classifyCandidateEvidence(candidate, nowIso);
+          } catch (error) {
+            crawlErrors += 1;
+            store.finishSourceRun(crawlRun.id, {
+              status: "failed",
+              candidateCount: 0,
+              error: error instanceof Error ? error.message : String(error),
+            });
+          }
+        }
 
         for (const signal of normalizedSignals) {
           repository.upsertHunterSignal({
@@ -173,5 +229,7 @@ export async function runHunterDiscoveryCycle(
     buyersDiscovered,
     outreachReady,
     sourceErrors,
+    crawlsCompleted,
+    crawlErrors,
   };
 }
