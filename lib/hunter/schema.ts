@@ -106,6 +106,19 @@ export const HUNTER_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_hunter_drafts_target_created
     ON hunter_message_drafts(target_id, created_at DESC);
 
+  CREATE TABLE IF NOT EXISTS hunter_draft_deliveries (
+    id TEXT PRIMARY KEY,
+    draft_id TEXT NOT NULL REFERENCES hunter_message_drafts(id) ON DELETE CASCADE,
+    run_id TEXT NOT NULL,
+    target_id TEXT NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
+    channel TEXT NOT NULL CHECK(channel IN ('email', 'linkedin')),
+    consumed_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(draft_id, run_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_hunter_draft_deliveries_target_run
+    ON hunter_draft_deliveries(target_id, run_id, channel);
+
   CREATE TABLE IF NOT EXISTS hunter_approvals (
     id TEXT PRIMARY KEY,
     draft_id TEXT NOT NULL UNIQUE REFERENCES hunter_message_drafts(id) ON DELETE CASCADE,
