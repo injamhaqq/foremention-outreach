@@ -49,7 +49,7 @@ export async function generateHunterMiniAuditQuestions(input: {
 }) {
   const output = await input.aiProvider.generateStructured({
     system: [
-      "Generate three to five category-level buyer questions for a Foremention mini-audit.",
+      "Generate Foremention mini-audit questions: three to five category-level buyer questions.",
       "These must sound like real questions a B2B software buyer could ask ChatGPT, Gemini, Perplexity, or another AI answer engine.",
       "Use only the supplied company and evidence to infer the category. Do not invent product claims, budgets, projects, urgency, or competitors.",
       "Prefer non-branded recommendation/comparison questions that can reveal whether the company is surfaced against alternatives.",
