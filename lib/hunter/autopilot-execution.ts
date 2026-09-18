@@ -4,6 +4,7 @@ import type { HunterAiProvider } from "./ai";
 import { enrollApprovedHunterDraft } from "./approval";
 import { evaluateAutopilotDecision, type HunterAutopilotMode } from "./autopilot";
 import { generateHunterDraft } from "./drafts";
+import { hasVerifiedWorkEmail } from "./contact-verification";
 import { createHunterRepository } from "./repository";
 import { runHunterForementionMiniAudit, type HunterMiniAuditRequester } from "./mini-audit";
 import { buildResearchBrief, type HunterResearchSignal } from "./research";
@@ -14,6 +15,7 @@ type TargetRow = {
   full_name: string | null;
   title: string | null;
   email: string | null;
+  email_status: string | null;
   linkedin_url: string | null;
   company_id: string;
 };
@@ -115,7 +117,7 @@ export async function processHunterAutopilotTarget(
   const now = input.now ?? new Date();
   const repository = createHunterRepository(db);
   const target = db.prepare(`
-    SELECT id, company_id, full_name, title, email, linkedin_url
+    SELECT id, company_id, full_name, title, email, email_status, linkedin_url
     FROM targets WHERE id = ? AND company_id = ?
   `).get(input.targetId, input.companyId) as TargetRow | undefined;
   const company = db.prepare("SELECT id, name, domain FROM companies WHERE id = ?")
@@ -133,7 +135,7 @@ export async function processHunterAutopilotTarget(
     strongSignalCount: parsedStrongSignalCount(score.score_json),
     evidenceFresh: signals.length > 0,
     suppressed,
-    buyer: { hasEmail: Boolean(target.email), hasLinkedIn: Boolean(target.linkedin_url) },
+    buyer: { hasEmail: hasVerifiedWorkEmail(target.email, target.email_status), hasLinkedIn: Boolean(target.linkedin_url) },
     emailHealthy: input.emailHealthy,
     linkedinHealthy: input.linkedinHealthy,
   });
