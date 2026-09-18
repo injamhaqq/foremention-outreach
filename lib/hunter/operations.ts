@@ -3,16 +3,9 @@ import { hasVerifiedWorkEmail } from "./contact-verification";
 import { summarizeHunterCosts } from "./costs";
 
 type CountRow = { c: number | string | null };
-type SumRow = { total: number | string | null };
-
 function count(db: Database.Database, sql: string, ...args: unknown[]) {
   const row = db.prepare(sql).get(...args) as CountRow | undefined;
   return Number(row?.c ?? 0);
-}
-
-function sum(db: Database.Database, sql: string, ...args: unknown[]) {
-  const row = db.prepare(sql).get(...args) as SumRow | undefined;
-  return Number(row?.total ?? 0);
 }
 
 function isoDate(now: Date) {
