@@ -358,29 +358,32 @@ export async function runHunterAcquisitionCycle(
     : config.crawl4aiUrl
       ? createCrawl4AiClient({ baseUrl: config.crawl4aiUrl, apiToken: env.CRAWL4AI_API_TOKEN })
       : null;
-  const miniAuditRequester = options.miniAuditRequester !== undefined
+  const rawMiniAuditRequester = options.miniAuditRequester !== undefined
     ? options.miniAuditRequester
     : env.FOREMENTION_OUTREACH_SECRET?.trim()
-      ? async (input: Parameters<HunterMiniAuditRequester>[0]) => {
-          let ok = false;
-          try {
-            const result = await requestForementionMiniAudit(input, {
-              baseUrl: env.FOREMENTION_OUTREACH_URL,
-              secret: env.FOREMENTION_OUTREACH_SECRET,
-            });
-            ok = true;
-            return result;
-          } finally {
-            reportHunterUsage(usageReporter, {
-              provider: "foremention",
-              eventType: "mini_audit_request",
-              units: 1,
-              unitType: "request",
-              metadata: { questionCount: input.questions.length, ok },
-            });
-          }
-        }
+      ? async (input: Parameters<HunterMiniAuditRequester>[0]) => requestForementionMiniAudit(input, {
+          baseUrl: env.FOREMENTION_OUTREACH_URL,
+          secret: env.FOREMENTION_OUTREACH_SECRET,
+        })
       : null;
+  const miniAuditRequester: HunterMiniAuditRequester | null = rawMiniAuditRequester
+    ? async (input) => {
+        let ok = false;
+        try {
+          const result = await rawMiniAuditRequester(input);
+          ok = true;
+          return result;
+        } finally {
+          reportHunterUsage(usageReporter, {
+            provider: "foremention",
+            eventType: "mini_audit_request",
+            units: 1,
+            unitType: "request",
+            metadata: { questionCount: input.questions.length, ok },
+          });
+        }
+      }
+    : null;
 
   let discovery: Awaited<ReturnType<typeof runHunterDiscoveryCycle>> | null = null;
   let discoverySkippedReason: string | null = null;
