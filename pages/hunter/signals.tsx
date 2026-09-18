@@ -21,23 +21,30 @@ export default function HunterSignalsPage() {
   const router = useRouter();
   const companyId = typeof router.query.companyId === "string" ? router.query.companyId : "";
   const [signals, setSignals] = useState<Signal[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loadedCompanyId, setLoadedCompanyId] = useState("");
   const [error, setError] = useState("");
   const [snapshotAt, setSnapshotAt] = useState<number | null>(null);
+  const loading = Boolean(companyId && loadedCompanyId !== companyId);
 
   useEffect(() => {
     if (!companyId) return;
-    setLoading(true);
-    setError("");
+    let cancelled = false;
     fetch(`/api/hunter/signals?companyId=${encodeURIComponent(companyId)}`, { cache: "no-store" })
       .then(async (response) => {
         const body = await response.json();
         if (!response.ok) throw new Error(body?.error || "Signals could not be loaded.");
+        if (cancelled) return;
         setSignals(body.data ?? []);
         setSnapshotAt(typeof body.generatedAt === "string" ? Date.parse(body.generatedAt) : null);
+        setError("");
+        setLoadedCompanyId(companyId);
       })
-      .catch((err) => setError(err instanceof Error ? err.message : "Signals could not be loaded."))
-      .finally(() => setLoading(false));
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err instanceof Error ? err.message : "Signals could not be loaded.");
+        setLoadedCompanyId(companyId);
+      });
+    return () => { cancelled = true; };
   }, [companyId]);
 
   return (
