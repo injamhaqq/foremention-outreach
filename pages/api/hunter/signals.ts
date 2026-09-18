@@ -37,7 +37,7 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method === "GET") {
     const companyId = typeof req.query.companyId === "string" ? req.query.companyId.trim() : "";
     if (!companyId) return res.status(400).json({ error: "companyId is required." });
-    return res.status(200).json({ data: repository.listSignalsForCompany(companyId) });
+    return res.status(200).json({ data: repository.listSignalsForCompany(companyId), generatedAt: new Date().toISOString() });
   }
 
   if (req.method === "POST") {
