@@ -50,14 +50,6 @@ function makeDb() {
   return { db, signal };
 }
 
-const ai = {
-  generateStructured: async ({ system }: { system: string }) => {
-    if (/cold outreach/i.test(system)) {
-      return { subject: "AI search at Acme", body: "Saw your AI-search hiring signal. Happy to send the evidence.", evidenceIds: ["hs-placeholder"] };
-    }
-    return { summary: "Acme is hiring for AI search.", whyNow: "Current hiring signal.", outreachAngle: "Offer evidence.", claims: [] };
-  },
-};
 
 test("assisted mode creates evidence-backed drafts but does not enroll them", async () => {
   const { db, signal } = makeDb();
