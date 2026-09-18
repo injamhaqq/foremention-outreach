@@ -74,6 +74,11 @@ test("operations snapshot reports truthful today, pipeline, health and cost metr
     VALUES
       ('cost1','c1','t1','apollo','enrichment',0.08,1,'{}','2026-09-18T14:10:00.000Z','2026-09-18T14:10:00.000Z');
 
+    INSERT INTO hunter_sales_tasks
+      (id,company_id,target_id,dedupe_key,task_type,status,priority,reason,source_reply_id,due_at,metadata_json,created_at,updated_at)
+    VALUES
+      ('task1','c1','t1','task1','human_reply','pending','high','Positive reply','reply1','2026-09-18T14:15:00.000Z','{}','2026-09-18T14:15:00.000Z','2026-09-18T14:15:00.000Z');
+
     INSERT INTO hunter_autopilot_decisions
       (id,company_id,target_id,mode,action,allowed_email,allowed_linkedin,reasons_json,decided_at,created_at)
     VALUES ('ad1','c1','t1','assisted','approval_required',1,1,'["first_touch_review_policy"]','2026-09-18T14:20:00.000Z','2026-09-18T14:20:00.000Z');
@@ -96,4 +101,6 @@ test("operations snapshot reports truthful today, pipeline, health and cost metr
   assert.deepEqual(snapshot.health.channels.linkedin.reasons, ["checkpoint_detected"]);
   assert.equal(snapshot.costs.todayUsd, 0.08);
   assert.equal(snapshot.autopilot.approvalRequiredToday, 1);
+  assert.equal(snapshot.salesTasks.pending, 1);
+  assert.equal(snapshot.salesTasks.highPriority, 1);
 });
