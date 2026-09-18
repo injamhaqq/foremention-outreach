@@ -125,17 +125,17 @@ export function loadHunterOperationsSnapshot(db: Database.Database, now = new Da
 
   const meetingsOrBeyond = count(db, `
     SELECT COUNT(*) AS c FROM hunter_opportunities
-    WHERE stage IN ('meeting_booked','discovery','design_partner','pilot_proposed','pilot_active','paid_customer')
+    WHERE stage IN ('meeting_booked','discovery','design_partner','pilot_proposed','pilot_active','paid_pilot','customer','expansion','paid_customer')
   `);
 
   const activePilotsOrBeyond = count(db, `
     SELECT COUNT(*) AS c FROM hunter_opportunities
-    WHERE stage IN ('pilot_active','paid_customer')
+    WHERE stage IN ('pilot_active','paid_pilot','customer','expansion','paid_customer')
   `);
 
   const paidCustomers = count(db, `
     SELECT COUNT(*) AS c FROM hunter_opportunities
-    WHERE stage = 'paid_customer'
+    WHERE stage IN ('customer','expansion','paid_customer')
   `);
 
   const sourceFailures24h = count(db, `
