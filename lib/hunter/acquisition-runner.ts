@@ -357,7 +357,7 @@ export async function runHunterAcquisitionCycle(
   const miniAuditRequester = options.miniAuditRequester !== undefined
     ? options.miniAuditRequester
     : env.FOREMENTION_OUTREACH_SECRET?.trim()
-      ? async (input) => requestForementionMiniAudit(input, {
+      ? async (input: Parameters<HunterMiniAuditRequester>[0]) => requestForementionMiniAudit(input, {
           baseUrl: env.FOREMENTION_OUTREACH_URL,
           secret: env.FOREMENTION_OUTREACH_SECRET,
         })
