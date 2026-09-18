@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import { hasVerifiedWorkEmail } from "./contact-verification";
+import { summarizeHunterCosts } from "./costs";
 
 type CountRow = { c: number | string | null };
 type SumRow = { total: number | string | null };
@@ -145,17 +146,7 @@ export function loadHunterOperationsSnapshot(db: Database.Database, now = new Da
       AND datetime(started_at) <= datetime(?)
   `, since24h, now.toISOString());
 
-  const todayUsd = sum(db, `
-    SELECT COALESCE(SUM(amount_usd), 0) AS total FROM hunter_cost_events
-    WHERE datetime(occurred_at) >= datetime(?)
-      AND datetime(occurred_at) < datetime(?)
-  `, start, nextDay);
-
-  const todayUnits = sum(db, `
-    SELECT COALESCE(SUM(units), 0) AS total FROM hunter_cost_events
-    WHERE datetime(occurred_at) >= datetime(?)
-      AND datetime(occurred_at) < datetime(?)
-  `, start, nextDay);
+  const costSummary = summarizeHunterCosts(db, { start, end: nextDay });
 
   const approvalRequiredToday = count(db, `
     SELECT COUNT(*) AS c FROM hunter_autopilot_decisions
@@ -210,8 +201,13 @@ export function loadHunterOperationsSnapshot(db: Database.Database, now = new Da
       },
     },
     costs: {
-      todayUsd: Math.round(todayUsd * 1_000_000) / 1_000_000,
-      todayUnits,
+      // Backward-compatible name: this is known/reported spend only.
+      todayUsd: costSummary.knownUsd,
+      knownUsd: costSummary.knownUsd,
+      unknownCostEvents: costSummary.unknownCostEvents,
+      eventCount: costSummary.eventCount,
+      unitsByType: costSummary.unitsByType,
+      eventsByProvider: costSummary.eventsByProvider,
     },
     autopilot: {
       approvalRequiredToday,
