@@ -140,6 +140,17 @@ export function evaluateHunterReadiness(
     ai,
     forementionMiniAudit,
     execution,
+    canary: {
+      enabled: /^(1|true|yes|on)$/i.test(value(env, "HUNTER_CANARY_ENABLED")),
+      mode: "assisted" as const,
+      hardCaps: {
+        discoveryQueries: 1,
+        resultsPerQuery: 5,
+        companies: 2,
+        buyersPerCompany: 2,
+        autoSend: false,
+      },
+    },
     assistedLaunchReady,
     fullyReady,
   };
