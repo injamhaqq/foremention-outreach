@@ -1,4 +1,5 @@
 import { hasVerifiedWorkEmail } from "./contact-verification";
+import { reportHunterUsage, type HunterUsageReporter } from "./costs";
 
 export type HunterBuyerSearchInput = {
   domain: string;
@@ -148,6 +149,7 @@ function apolloCandidate(person: Record<string, unknown>, fallback?: Record<stri
 
 export function createApolloBuyerProvider(input: {
   apiKey: string;
+  onUsage?: HunterUsageReporter;
   fetchImpl?: FetchLike;
 }): HunterBuyerProvider {
   const fetchImpl = input.fetchImpl ?? fetch;
@@ -163,6 +165,13 @@ export function createApolloBuyerProvider(input: {
       const searchResponse = await fetchImpl(searchUrl, {
         method: "POST",
         headers: { "content-type": "application/json", "x-api-key": input.apiKey },
+      });
+      reportHunterUsage(input.onUsage, {
+        provider: "apollo",
+        eventType: "people_search_request",
+        units: 1,
+        unitType: "request",
+        metadata: { status: searchResponse.status, ok: searchResponse.ok },
       });
       if (!searchResponse.ok) throw new Error(`Apollo people search failed with HTTP ${searchResponse.status}.`);
       const searchPayload = await searchResponse.json() as { people?: Array<Record<string, unknown>> };
@@ -182,6 +191,13 @@ export function createApolloBuyerProvider(input: {
               method: "POST",
               headers: { "content-type": "application/json", "x-api-key": input.apiKey },
             });
+            reportHunterUsage(input.onUsage, {
+              provider: "apollo",
+              eventType: "person_enrichment_request",
+              units: 1,
+              unitType: "request",
+              metadata: { status: matchResponse.status, ok: matchResponse.ok },
+            });
             if (matchResponse.ok) {
               const matchPayload = await matchResponse.json() as { person?: Record<string, unknown> };
               if (matchPayload.person) candidate = apolloCandidate(matchPayload.person, person) ?? candidate;
@@ -199,6 +215,7 @@ export function createApolloBuyerProvider(input: {
 
 export function createHunterDomainBuyerProvider(input: {
   apiKey: string;
+  onUsage?: HunterUsageReporter;
   fetchImpl?: FetchLike;
 }): HunterBuyerProvider {
   const fetchImpl = input.fetchImpl ?? fetch;
@@ -210,6 +227,13 @@ export function createHunterDomainBuyerProvider(input: {
       url.searchParams.set("limit", String(Math.min(100, Math.max(limit * 4, 10))));
       url.searchParams.set("api_key", input.apiKey);
       const response = await fetchImpl(url);
+      reportHunterUsage(input.onUsage, {
+        provider: "hunter",
+        eventType: "domain_search_request",
+        units: 1,
+        unitType: "request",
+        metadata: { status: response.status, ok: response.ok },
+      });
       if (!response.ok) throw new Error(`Hunter domain search failed with HTTP ${response.status}.`);
       const payload = await response.json() as { data?: { emails?: Array<Record<string, unknown>> } };
       const wanted = titles.map((title) => title.toLowerCase());
@@ -271,6 +295,7 @@ function prospeoCandidate(person: Record<string, unknown>, fallback?: Record<str
 
 export function createProspeoBuyerProvider(input: {
   apiKey: string;
+  onUsage?: HunterUsageReporter;
   fetchImpl?: FetchLike;
 }): HunterBuyerProvider {
   const fetchImpl = input.fetchImpl ?? fetch;
@@ -287,6 +312,13 @@ export function createProspeoBuyerProvider(input: {
             company: { websites: { include: [normalizedDomain(domain)] } },
           },
         }),
+      });
+      reportHunterUsage(input.onUsage, {
+        provider: "prospeo",
+        eventType: "people_search_request",
+        units: 1,
+        unitType: "request",
+        metadata: { status: searchResponse.status, ok: searchResponse.ok },
       });
       const searchPayload = await searchResponse.json().catch(() => null) as {
         error?: boolean;
@@ -313,6 +345,13 @@ export function createProspeoBuyerProvider(input: {
                 data: { person_id: personId },
               }),
             });
+            reportHunterUsage(input.onUsage, {
+              provider: "prospeo",
+              eventType: "person_enrichment_request",
+              units: 1,
+              unitType: "request",
+              metadata: { status: enrichResponse.status, ok: enrichResponse.ok },
+            });
             const enrichPayload = await enrichResponse.json().catch(() => null) as {
               error?: boolean;
               person?: Record<string, unknown>;
@@ -331,14 +370,17 @@ export function createProspeoBuyerProvider(input: {
   };
 }
 
-export function configuredBuyerProviders(env: NodeJS.ProcessEnv = process.env): HunterBuyerProvider[] {
+export function configuredBuyerProviders(
+  env: NodeJS.ProcessEnv = process.env,
+  onUsage?: HunterUsageReporter,
+): HunterBuyerProvider[] {
   const providers: HunterBuyerProvider[] = [];
   const order = String(env.HUNTER_BUYER_PROVIDER_ORDER || "hunter,apollo,prospeo")
     .split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
   for (const id of order) {
-    if (id === "hunter" && env.HUNTER_API_KEY?.trim()) providers.push(createHunterDomainBuyerProvider({ apiKey: env.HUNTER_API_KEY }));
-    if (id === "apollo" && env.APOLLO_API_KEY?.trim()) providers.push(createApolloBuyerProvider({ apiKey: env.APOLLO_API_KEY }));
-    if (id === "prospeo" && env.PROSPEO_API_KEY?.trim()) providers.push(createProspeoBuyerProvider({ apiKey: env.PROSPEO_API_KEY }));
+    if (id === "hunter" && env.HUNTER_API_KEY?.trim()) providers.push(createHunterDomainBuyerProvider({ apiKey: env.HUNTER_API_KEY, onUsage }));
+    if (id === "apollo" && env.APOLLO_API_KEY?.trim()) providers.push(createApolloBuyerProvider({ apiKey: env.APOLLO_API_KEY, onUsage }));
+    if (id === "prospeo" && env.PROSPEO_API_KEY?.trim()) providers.push(createProspeoBuyerProvider({ apiKey: env.PROSPEO_API_KEY, onUsage }));
   }
   return providers;
 }
