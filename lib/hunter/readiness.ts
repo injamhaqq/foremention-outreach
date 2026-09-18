@@ -28,6 +28,9 @@ function aiConfigured(env: NodeJS.ProcessEnv) {
     return any(value(env, "HUNTER_AI_API_KEY"), value(env, "OPENAI_API_KEY"))
       && any(value(env, "HUNTER_AI_MODEL"), value(env, "OPENAI_MODEL"));
   }
+  if (provider === "ollama") {
+    return any(value(env, "HUNTER_AI_MODEL"), value(env, "OLLAMA_MODEL"));
+  }
   return false;
 }
 
