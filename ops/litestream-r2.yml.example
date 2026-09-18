@@ -1,0 +1,17 @@
+# Foremention Outreach SQLite disaster-recovery example.
+# Litestream expands environment variables in config files by default.
+#
+# Keep exactly one active replicator for this SQLite database/replica path.
+# Restore tests should be performed before relying on this in production.
+dbs:
+  - path: /data/linki.db
+    replicas:
+      - type: s3
+        bucket: ${LITESTREAM_S3_BUCKET}
+        path: ${LITESTREAM_S3_PATH}
+        endpoint: ${LITESTREAM_S3_ENDPOINT}
+        region: auto
+        access-key-id: ${LITESTREAM_S3_ACCESS_KEY_ID}
+        secret-access-key: ${LITESTREAM_S3_SECRET_ACCESS_KEY}
+        retention: 168h
+        sync-interval: 10s
