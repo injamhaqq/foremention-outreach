@@ -3,6 +3,7 @@ import { getDb } from "@/lib/db";
 import { ensureHunterSchema } from "@/lib/hunter/schema";
 import { loadHunterFeed } from "@/lib/hunter/feed";
 import { loadHunterOperationsSnapshot } from "@/lib/hunter/operations";
+import { evaluateHunterReadiness } from "@/lib/hunter/readiness";
 
 export default function handler(req: NextApiRequest, res: NextApiResponse) {
   if (req.method !== "GET") {
@@ -21,5 +22,6 @@ export default function handler(req: NextApiRequest, res: NextApiResponse) {
   }, { priority: 0, good_cold: 0, cold_fit: 0, monitor: 0 });
 
   const operations = loadHunterOperationsSnapshot(db);
-  return res.status(200).json({ data, counts, operations, generatedAt: new Date().toISOString() });
+  const readiness = evaluateHunterReadiness(db);
+  return res.status(200).json({ data, counts, operations, readiness, generatedAt: new Date().toISOString() });
 }
