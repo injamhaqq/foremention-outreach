@@ -1,5 +1,6 @@
 import type Database from "better-sqlite3";
 import { ensureHunterSchema } from "./schema";
+import { runHunterAcquisitionCycle } from "./acquisition-runner";
 import { processPendingHunterEmailReplies, processStampedHunterLinkedInReplies, syncHunterBounceSuppressions } from "./reply-monitor";
 import { qualifyHunterCandidate } from "./qualification";
 import { createHunterRepository } from "./repository";
@@ -177,6 +178,19 @@ export async function runHunterMaintenanceCycle(db: Database.Database) {
   };
 }
 
+export async function runHunterContinuousCycle(db: Database.Database) {
+  const maintenance = await runHunterMaintenanceCycle(db);
+  let acquisition: Awaited<ReturnType<typeof runHunterAcquisitionCycle>> | null = null;
+  let acquisitionError: string | null = null;
+  try {
+    acquisition = await runHunterAcquisitionCycle(db);
+  } catch (error) {
+    acquisitionError = error instanceof Error ? error.message : String(error);
+    console.warn("[hunter] acquisition cycle failed:", acquisitionError);
+  }
+  return { ...maintenance, acquisition, acquisitionError };
+}
+
 type HunterGlobal = typeof globalThis & {
   __forementionHunterRunnerStarted?: boolean;
   __forementionHunterTimer?: ReturnType<typeof setInterval>;
@@ -188,8 +202,8 @@ export function ensureHunterRunnerStarted() {
   holder.__forementionHunterRunnerStarted = true;
 
   const execute = () => {
-    void import("../db").then(({ getDb }) => runHunterMaintenanceCycle(getDb()))
-      .catch((error) => console.error("[hunter] maintenance cycle failed:", error));
+    void import("../db").then(({ getDb }) => runHunterContinuousCycle(getDb()))
+      .catch((error) => console.error("[hunter] continuous cycle failed:", error));
   };
   execute();
   const configured = Number(process.env.HUNTER_RUNNER_INTERVAL_MS || DEFAULT_INTERVAL_MS);
