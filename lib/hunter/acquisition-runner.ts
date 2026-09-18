@@ -356,7 +356,7 @@ export async function runHunterAcquisitionCycle(
   const crawlClient = options.crawlClient !== undefined
     ? options.crawlClient
     : config.crawl4aiUrl
-      ? createCrawl4AiClient({ baseUrl: config.crawl4aiUrl, apiToken: env.CRAWL4AI_API_TOKEN })
+      ? createCrawl4AiClient({ baseUrl: config.crawl4aiUrl, apiToken: env.CRAWL4AI_API_TOKEN, onUsage: usageReporter })
       : null;
   const rawMiniAuditRequester = options.miniAuditRequester !== undefined
     ? options.miniAuditRequester
