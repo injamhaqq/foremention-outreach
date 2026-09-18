@@ -149,3 +149,66 @@ test("unverified email is never approved for email outreach even when LinkedIn i
   const tracks = db.prepare("SELECT track FROM run_profile_tracks").all() as Array<{track:string}>;
   assert.deepEqual(tracks.map((row) => row.track), ["linkedin"]);
 });
+
+
+test("assisted mode runs one Foremention mini-audit and grounds drafts in native visibility evidence", async () => {
+  const { db, signal } = makeDb();
+  let auditCalls = 0;
+  const provider = {
+    generateStructured: async ({ system }: { system: string }) => {
+      if (/mini-audit questions/i.test(system)) {
+        return {
+          questions: [
+            "What are the best AI-search visibility platforms for B2B SaaS?",
+            "Which tools help B2B SaaS teams track ChatGPT recommendations?",
+            "What platforms measure citations in generative search?",
+          ],
+        };
+      }
+      return {
+        subject: "AI search at Acme",
+        body: "Saw your current AI-search hiring signal and a visibility gap in the buyer questions checked. Happy to send the evidence.",
+        evidenceIds: [signal.id, "mini:1:1"],
+      };
+    },
+  };
+  const miniAuditRequester = async (input: { brand: string; domain: string; questions: string[] }) => {
+    auditCalls += 1;
+    assert.equal(input.brand, "Acme");
+    assert.equal(input.domain, "acme.com");
+    assert.equal(input.questions.length, 3);
+    return {
+      brand: "Acme",
+      domain: "acme.com",
+      collectedAt: "2026-09-18T12:04:00.000Z",
+      questions: [{
+        question: input.questions[0],
+        observations: [{
+          provider: "groq",
+          model: "compound",
+          status: "ok" as const,
+          answer: "CompetitorCo is recommended; Acme is not mentioned.",
+          citations: [{ url: "https://example.com/source" }],
+          brandMentioned: false,
+          domainCited: false,
+          competitorMentions: ["CompetitorCo"],
+          collectedAt: "2026-09-18T12:04:00.000Z",
+        }],
+      }],
+    };
+  };
+
+  const result = await processHunterAutopilotTarget(db, {
+    companyId: "company-1", targetId: "target-1", mode: "assisted", runId: "run-1",
+    emailHealthy: true, linkedinHealthy: true, aiProvider: provider,
+    miniAuditRequester,
+    now: new Date("2026-09-18T12:05:00.000Z"),
+  });
+
+  assert.equal(result.action, "approval_required");
+  assert.equal(auditCalls, 1);
+  assert.equal((db.prepare("SELECT COUNT(*) c FROM hunter_mini_audits WHERE status = 'success'").get() as {c:number}).c, 1);
+  const report = db.prepare("SELECT report_json FROM hunter_research_reports ORDER BY created_at DESC LIMIT 1").get() as { report_json: string };
+  assert.match(report.report_json, /"kind":"mini_audit"/);
+  assert.match(report.report_json, /CompetitorCo/);
+});
