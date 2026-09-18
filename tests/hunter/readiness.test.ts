@@ -38,6 +38,9 @@ test("readiness separates core acquisition execution from Foremention-native adv
   assert.equal(ready.execution.ready, true);
   assert.equal(ready.forementionMiniAudit.ready, true);
   assert.equal(ready.fullyReady, true);
+  assert.equal(ready.canary.enabled, false);
+  assert.equal(ready.canary.mode, "assisted");
+  assert.equal(ready.canary.hardCaps.autoSend, false);
 
   const withoutNativeAudit = evaluateHunterReadiness(db, { ...env, FOREMENTION_OUTREACH_SECRET: "" });
   assert.equal(withoutNativeAudit.execution.ready, true);
