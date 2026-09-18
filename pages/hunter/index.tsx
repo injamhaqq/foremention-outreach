@@ -30,6 +30,7 @@ function Metric({ label, value, detail }: { label: string; value: number; detail
 export default function HunterBuyerFeedPage() {
   const [feed, setFeed] = useState<FeedResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [discovering, setDiscovering] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<"all" | HunterRoute>("all");
   const [query, setQuery] = useState("");
@@ -48,6 +49,21 @@ export default function HunterBuyerFeedPage() {
       setLoading(false);
     }
   }, []);
+
+  const findBuyersNow = useCallback(async () => {
+    setDiscovering(true);
+    setError("");
+    try {
+      const response = await fetch("/api/hunter/discover", { method: "POST" });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error || "Buyer discovery could not be started.");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Buyer discovery could not be started.");
+    } finally {
+      setDiscovering(false);
+    }
+  }, [refresh]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -77,9 +93,9 @@ export default function HunterBuyerFeedPage() {
               Intent buyers, evidence, research, and multichannel cold outreach in one operating view.
             </p>
           </div>
-          <button onClick={() => void refresh()} disabled={loading} className="btn btn-sm btn-primary">
-            {loading ? <span className="loading loading-spinner loading-xs" /> : null}
-            Find buyers now
+          <button onClick={() => void findBuyersNow()} disabled={loading || discovering} className="btn btn-sm btn-primary">
+            {discovering ? <span className="loading loading-spinner loading-xs" /> : null}
+            {discovering ? "Finding buyers…" : "Find buyers now"}
           </button>
         </div>
 
