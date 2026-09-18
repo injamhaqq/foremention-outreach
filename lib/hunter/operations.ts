@@ -178,6 +178,14 @@ export function loadHunterOperationsSnapshot(db: Database.Database, now = new Da
       AND datetime(decided_at) < datetime(?)
   `, start, nextDay);
 
+  const pendingSalesTasks = count(db, `
+    SELECT COUNT(*) AS c FROM hunter_sales_tasks WHERE status = 'pending'
+  `);
+  const highPrioritySalesTasks = count(db, `
+    SELECT COUNT(*) AS c FROM hunter_sales_tasks
+    WHERE status = 'pending' AND priority = 'high'
+  `);
+
   return {
     generatedAt: now.toISOString(),
     today: {
@@ -209,6 +217,10 @@ export function loadHunterOperationsSnapshot(db: Database.Database, now = new Da
       approvalRequiredToday,
       autoStartedToday,
       blockedToday,
+    },
+    salesTasks: {
+      pending: pendingSalesTasks,
+      highPriority: highPrioritySalesTasks,
     },
   };
 }
