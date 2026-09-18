@@ -23,6 +23,7 @@ export default function HunterSignalsPage() {
   const [signals, setSignals] = useState<Signal[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [snapshotAt, setSnapshotAt] = useState<number | null>(null);
 
   useEffect(() => {
     if (!companyId) return;
@@ -33,6 +34,7 @@ export default function HunterSignalsPage() {
         const body = await response.json();
         if (!response.ok) throw new Error(body?.error || "Signals could not be loaded.");
         setSignals(body.data ?? []);
+        setSnapshotAt(typeof body.generatedAt === "string" ? Date.parse(body.generatedAt) : null);
       })
       .catch((err) => setError(err instanceof Error ? err.message : "Signals could not be loaded."))
       .finally(() => setLoading(false));
@@ -61,7 +63,7 @@ export default function HunterSignalsPage() {
 
         <div className="space-y-3">
           {signals.map((signal) => {
-            const expired = signal.expiresAt ? Date.parse(signal.expiresAt) < Date.now() : false;
+            const expired = signal.expiresAt && snapshotAt !== null ? Date.parse(signal.expiresAt) < snapshotAt : false;
             return (
               <article key={signal.id} className="rounded-xl border border-base-300/50 bg-base-200 p-4">
                 <div className="flex items-start justify-between gap-4">
