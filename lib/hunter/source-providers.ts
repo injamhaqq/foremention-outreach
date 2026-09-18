@@ -1,4 +1,5 @@
 import type { HunterDiscoveryCandidate, HunterDiscoveryProvider } from "./discovery";
+import { reportHunterUsage, type HunterUsageReporter } from "./costs";
 
 type FetchLike = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
 
@@ -36,6 +37,7 @@ function domainFromUrl(value: string) {
 
 export function createSearxngProvider(input: {
   baseUrl: string;
+  onUsage?: HunterUsageReporter;
   fetchImpl?: FetchLike;
 }): HunterDiscoveryProvider {
   const baseUrl = normalizeBaseUrl(input.baseUrl);
@@ -47,6 +49,13 @@ export function createSearxngProvider(input: {
       url.searchParams.set("q", query);
       url.searchParams.set("format", "json");
       const response = await fetchImpl(url);
+      reportHunterUsage(input.onUsage, {
+        provider: "searxng",
+        eventType: "search_request",
+        units: 1,
+        unitType: "request",
+        metadata: { status: response.status, ok: response.ok },
+      });
       if (!response.ok) throw new Error(`SearXNG search failed with HTTP ${response.status}.`);
       const payload = await response.json() as {
         results?: Array<{ url?: string; title?: string; content?: string }>;
@@ -72,6 +81,7 @@ export function createSearxngProvider(input: {
 export function createFirecrawlProvider(input: {
   baseUrl: string;
   apiKey?: string;
+  onUsage?: HunterUsageReporter;
   fetchImpl?: FetchLike;
 }): HunterDiscoveryProvider {
   const baseUrl = normalizeBaseUrl(input.baseUrl);
@@ -85,6 +95,13 @@ export function createFirecrawlProvider(input: {
         method: "POST",
         headers,
         body: JSON.stringify({ query, limit }),
+      });
+      reportHunterUsage(input.onUsage, {
+        provider: "firecrawl",
+        eventType: "search_request",
+        units: 1,
+        unitType: "request",
+        metadata: { status: response.status, ok: response.ok },
       });
       if (!response.ok) throw new Error(`Firecrawl search failed with HTTP ${response.status}.`);
       const payload = await response.json() as {
@@ -110,15 +127,19 @@ export function createFirecrawlProvider(input: {
   };
 }
 
-export function configuredDiscoveryProviders(env: NodeJS.ProcessEnv = process.env): HunterDiscoveryProvider[] {
+export function configuredDiscoveryProviders(
+  env: NodeJS.ProcessEnv = process.env,
+  onUsage?: HunterUsageReporter,
+): HunterDiscoveryProvider[] {
   const providers: HunterDiscoveryProvider[] = [];
   if (env.SEARXNG_URL?.trim()) {
-    providers.push(createSearxngProvider({ baseUrl: env.SEARXNG_URL }));
+    providers.push(createSearxngProvider({ baseUrl: env.SEARXNG_URL, onUsage }));
   }
   if (isFirecrawlDiscoveryConfigured(env)) {
     providers.push(createFirecrawlProvider({
       baseUrl: String(env.FIRECRAWL_API_URL || "").trim(),
       apiKey: env.FIRECRAWL_API_KEY?.trim() || undefined,
+      onUsage,
     }));
   }
   return providers;
