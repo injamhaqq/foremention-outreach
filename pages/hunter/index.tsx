@@ -4,11 +4,13 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import BuyerCard, { type BuyerCardItem } from "@/components/hunter/BuyerCard";
 import type { HunterRoute } from "@/lib/hunter/types";
 import type { HunterOperationsSnapshot } from "@/lib/hunter/operations";
+import type { HunterReadiness } from "@/lib/hunter/readiness";
 
 type FeedResponse = {
   data: BuyerCardItem[];
   counts: Record<HunterRoute, number>;
   operations: HunterOperationsSnapshot;
+  readiness: HunterReadiness;
   generatedAt: string;
 };
 
@@ -125,6 +127,36 @@ export default function HunterBuyerFeedPage() {
             </button>
           </div>
         </div>
+
+        {feed?.readiness && (
+          <div className={`border rounded-xl px-4 py-3 mb-4 ${feed.readiness.fullyReady ? "border-success/20 bg-success/5" : "border-warning/20 bg-warning/5"}`}>
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <div className={`text-xs font-medium ${feed.readiness.fullyReady ? "text-success" : "text-warning"}`}>
+                  {feed.readiness.fullyReady
+                    ? "Customer acquisition configuration ready"
+                    : feed.readiness.assistedLaunchReady
+                      ? "Core acquisition ready · Foremention mini-audit still needs configuration"
+                      : "Customer acquisition setup has blockers"}
+                </div>
+                {!feed.readiness.fullyReady && (
+                  <div className="text-[11px] text-base-content/45 mt-1">
+                    {[
+                      ...feed.readiness.discovery.reasons,
+                      ...feed.readiness.buyers.reasons,
+                      ...feed.readiness.ai.reasons,
+                      ...feed.readiness.execution.reasons,
+                      ...feed.readiness.forementionMiniAudit.reasons,
+                    ].map((item) => item.replaceAll("_", " ")).join(" · ")}
+                  </div>
+                )}
+              </div>
+              <div className="text-[10px] text-base-content/35">
+                Mode: {feed.readiness.execution.autopilotMode} · {feed.readiness.execution.channels.verifiedEmailAccounts} verified email · {feed.readiness.execution.channels.authenticatedLinkedInAccounts} LinkedIn
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
           <Metric label="Ready to contact" value={ready} detail="Fit + intent + reachable buyer" />
