@@ -5,6 +5,7 @@ import { getDb } from "@/lib/db";
 import { premium } from "@/lib/premium";
 import { decryptSecret } from "@/lib/crypto";
 import { emailTlsRejectUnauthorized } from "@/lib/email/tls";
+import { applyHardBounce } from "@/lib/email/bounces";
 
 const IMAP_POLL_INTERVAL_MS = 2 * 60 * 60 * 1000; // 2 hours
 // Jul 2026 incident: all email accounts became "due" in the same tick and synced
@@ -296,57 +297,10 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
                 for (const candidate of candidates) {
                   if (BOUNCE_SENDER_PATTERNS.some(p => p.test(candidate))) continue;
 
-                  const target = db
-                    .prepare("SELECT id, email_status, company_id FROM targets WHERE lower(email) = ?")
-                    .get(candidate) as { id: string; email_status: string | null; company_id: string | null } | undefined;
+                  const applied = applyHardBounce(db, candidate);
+                  if (!applied.applied) continue;
 
-                  if (!target || target.email_status === "invalid") continue;
-
-                  const note = `Email bounced on ${new Date().toISOString().slice(0, 10)} — marked invalid`;
-                  db.prepare(`
-                    UPDATE targets SET email_status = 'invalid',
-                      notes = CASE WHEN notes IS NULL OR notes = '' THEN ? ELSE notes || char(10) || ? END
-                    WHERE id = ?
-                  `).run(note, note, target.id);
-
-                  db.prepare(`
-                    UPDATE run_profile_tracks SET state = 'skipped', error_message = 'Email bounced — invalid address'
-                    WHERE run_profile_id IN (SELECT id FROM run_profiles WHERE target_id = ?)
-                    AND state IN ('pending', 'in_progress')
-                  `).run(target.id);
-
-                  if (target.company_id) {
-                    const companyNote = `Email domain flagged invalid — bounce for ${candidate} on ${new Date().toISOString().slice(0, 10)}`;
-                    db.prepare(`
-                      UPDATE companies SET email_domain_invalid = 1,
-                        notes = CASE WHEN notes IS NULL OR notes = '' THEN ? ELSE notes || char(10) || ? END
-                      WHERE id = ?
-                    `).run(companyNote, companyNote, target.company_id);
-
-                    const siblings = db.prepare(`
-                      SELECT id FROM targets WHERE company_id = ? AND id != ? AND email IS NOT NULL AND email_status != 'invalid'
-                    `).all(target.company_id, target.id) as { id: string }[];
-
-                    for (const sibling of siblings) {
-                      const sibNote = `Email bounced on ${new Date().toISOString().slice(0, 10)} — marked invalid (domain flagged via company)`;
-                      db.prepare(`
-                        UPDATE targets SET email_status = 'invalid',
-                          notes = CASE WHEN notes IS NULL OR notes = '' THEN ? ELSE notes || char(10) || ? END
-                        WHERE id = ?
-                      `).run(sibNote, sibNote, sibling.id);
-                      db.prepare(`
-                        UPDATE run_profile_tracks SET state = 'skipped', error_message = 'Email domain invalid — company flagged'
-                        WHERE run_profile_id IN (SELECT id FROM run_profiles WHERE target_id = ?)
-                        AND state IN ('pending', 'in_progress')
-                      `).run(sibling.id);
-                    }
-
-                    if (siblings.length > 0) {
-                      console.log(`[email-inbox] Company ${target.company_id} flagged — ${siblings.length} sibling(s) marked invalid`);
-                    }
-                  }
-
-                  console.log(`[email-inbox] Bounce for ${candidate} (target ${target.id}) — marked invalid`);
+                  console.log(`[email-inbox] Hard bounce for ${candidate} (target ${applied.targetId}) — address marked invalid`);
                   bounces++;
                   break;
                 }
