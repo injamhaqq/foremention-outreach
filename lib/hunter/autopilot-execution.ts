@@ -109,7 +109,7 @@ export async function processHunterAutopilotTarget(
     runId: string | null;
     emailHealthy: boolean;
     linkedinHealthy: boolean;
-    aiProvider: HunterAiProvider;
+    aiProvider?: HunterAiProvider | null;
     miniAuditRequester?: HunterMiniAuditRequester;
     now?: Date;
   },
@@ -157,7 +157,7 @@ export async function processHunterAutopilotTarget(
 
   let miniAudit = null;
   let miniAuditError: string | null = null;
-  if (input.miniAuditRequester) {
+  if (input.miniAuditRequester && input.aiProvider) {
     try {
       const result = await runHunterForementionMiniAudit(db, {
         company: { id: company.id, name: company.name, domain: company.domain },
