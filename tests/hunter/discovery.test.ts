@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   dedupeDiscoveryCandidates,
+  isNonCompanyDiscoveryDomain,
   normalizeDiscoveryCandidate,
   runDiscoveryProviders,
   type HunterDiscoveryProvider,
@@ -73,4 +74,49 @@ test("provider failure does not discard results from healthy providers", async (
   assert.equal(result.candidates.length, 1);
   assert.equal(result.errors.length, 1);
   assert.equal(result.errors[0].providerId, "failing");
+});
+
+
+test("rejects infrastructure, social, job-board and publisher domains as target companies", () => {
+  for (const domain of [
+    "boards.greenhouse.io",
+    "jobs.lever.co",
+    "acme.wd5.myworkdayjobs.com",
+    "linkedin.com",
+    "www.linkedin.com",
+    "techcrunch.com",
+    "prnewswire.com",
+    "reuters.com",
+    "indeed.com",
+    "wellfound.com",
+  ]) {
+    assert.equal(isNonCompanyDiscoveryDomain(domain), true, domain);
+  }
+
+  for (const domain of ["acme.com", "careers.acme.com", "example.co.uk"]) {
+    assert.equal(isNonCompanyDiscoveryDomain(domain), false, domain);
+  }
+});
+
+test("normalization refuses blocked third-party discovery domains instead of creating false prospect accounts", () => {
+  assert.throws(
+    () => normalizeDiscoveryCandidate({
+      name: "Acme Head of SEO",
+      domain: "boards.greenhouse.io",
+      sourceUrl: "https://boards.greenhouse.io/acme/jobs/123",
+      sourceName: "SearXNG",
+      evidenceText: "Acme is hiring a Head of SEO to own AI Overviews.",
+    }),
+    /not a target-company domain/i,
+  );
+  assert.throws(
+    () => normalizeDiscoveryCandidate({
+      name: "Acme raises Series B",
+      domain: "techcrunch.com",
+      sourceUrl: "https://techcrunch.com/acme-series-b",
+      sourceName: "SearXNG",
+      evidenceText: "Acme raised a Series B.",
+    }),
+    /not a target-company domain/i,
+  );
 });

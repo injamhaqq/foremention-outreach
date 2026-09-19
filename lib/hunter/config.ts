@@ -1,12 +1,25 @@
 import type { HunterAutopilotMode } from "./autopilot";
 
+const DISCOVERY_NOISE_EXCLUSIONS = [
+  "-site:linkedin.com",
+  "-site:greenhouse.io",
+  "-site:lever.co",
+  "-site:myworkdayjobs.com",
+  "-site:indeed.com",
+  "-site:glassdoor.com",
+  "-site:wellfound.com",
+  "-site:techcrunch.com",
+  "-site:prnewswire.com",
+  "-site:businesswire.com",
+].join(" ");
+
 const DEFAULT_QUERIES = [
   'B2B SaaS hiring "AI Overviews" SEO',
   'B2B SaaS hiring "generative search" SEO',
   'B2B SaaS "GEO" "AEO" organic search',
   'B2B SaaS "ChatGPT" "Perplexity" search visibility',
   'B2B SaaS hiring "Head of SEO" OR "Director of SEO"',
-];
+].map((query) => `${query} ${DISCOVERY_NOISE_EXCLUSIONS}`);
 
 function number(value: string | undefined, fallback: number, min: number, max: number) {
   const parsed = Number(value);

@@ -220,3 +220,63 @@ test("rediscovery never regresses an opportunity that already advanced beyond qu
   const opportunity = db.prepare("SELECT stage FROM hunter_opportunities LIMIT 1").get() as { stage: string };
   assert.equal(opportunity.stage, "contacted");
 });
+
+
+test("third-party search surfaces are not persisted or enriched as prospect companies", async () => {
+  const db = makeDb();
+  const buyerDomains: string[] = [];
+
+  const result = await runHunterDiscoveryCycle(db, {
+    config: {
+      discoveryEnabled: true,
+      discoveryQueries: ["AI search SaaS"],
+      discoveryIntervalMs: 1,
+      limitPerQuery: 10,
+      maxBuyersPerCompany: 3,
+      autopilotMode: "assisted",
+      defaultRunId: null,
+      crawl4aiUrl: null,
+      autoCrawlCompany: false,
+      maxCompaniesPerCycle: 10,
+    },
+    discoveryProviders: [{
+      id: "search",
+      search: async () => [
+        {
+          name: "Acme Head of SEO job",
+          domain: "boards.greenhouse.io",
+          sourceUrl: "https://boards.greenhouse.io/acme/jobs/seo",
+          sourceName: "search",
+          evidenceText: "Acme is hiring a Head of SEO for AI Overviews.",
+        },
+        {
+          name: "Acme raises Series B",
+          domain: "techcrunch.com",
+          sourceUrl: "https://techcrunch.com/acme-series-b",
+          sourceName: "search",
+          evidenceText: "Acme raised a Series B.",
+        },
+        {
+          name: "Acme",
+          domain: "acme.com",
+          sourceUrl: "https://acme.com/blog/ai-search",
+          sourceName: "Acme",
+          evidenceText: "Acme is a B2B SaaS platform investing in ChatGPT and AI search visibility.",
+        },
+      ],
+    }],
+    buyerProviders: [{
+      id: "buyer-source",
+      findBuyers: async ({ domain }) => {
+        buyerDomains.push(domain);
+        return [];
+      },
+    }],
+    now: new Date("2026-09-18T12:00:00.000Z"),
+  });
+
+  assert.equal(result.companiesDiscovered, 1);
+  assert.deepEqual(buyerDomains, ["acme.com"]);
+  const companies = db.prepare("SELECT domain FROM companies ORDER BY domain").all() as Array<{ domain: string }>;
+  assert.deepEqual(companies, [{ domain: "acme.com" }]);
+});
