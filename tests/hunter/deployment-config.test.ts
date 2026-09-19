@@ -23,3 +23,15 @@ test("SQLite disaster recovery is opt-in, pinned, and shares the persistent data
   assert.match(config, /endpoint:\s*\$\{LITESTREAM_S3_ENDPOINT\}/);
   assert.match(config, /region:\s*auto/);
 });
+
+
+test("Railway volume startup repairs /data ownership then drops privileges to node", () => {
+  const dockerfile = readFileSync(resolve(process.cwd(), "Dockerfile"), "utf8");
+  const entrypoint = readFileSync(resolve(process.cwd(), "scripts/docker-entrypoint.sh"), "utf8");
+
+  assert.match(dockerfile, /\bgosu\b/);
+  assert.match(dockerfile, /ENTRYPOINT \["\/usr\/local\/bin\/foremention-entrypoint"\]/);
+  assert.match(dockerfile, /USER root/);
+  assert.match(entrypoint, /chown node:node \/data/);
+  assert.match(entrypoint, /exec gosu node "\$@"/);
+});
