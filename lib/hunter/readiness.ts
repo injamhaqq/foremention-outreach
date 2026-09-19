@@ -135,8 +135,10 @@ export function evaluateHunterReadiness(
     autopilotMode: value(env, "HUNTER_AUTOPILOT_MODE") || "assisted",
   };
 
-  const assistedLaunchReady = discovery.ready && buyers.ready && ai.ready && execution.ready;
-  const fullyReady = assistedLaunchReady && forementionMiniAudit.ready;
+  // External AI improves research and enables Foremention-native mini-audits,
+  // but evidence-only drafting keeps the assisted launch path functional.
+  const assistedLaunchReady = discovery.ready && buyers.ready && execution.ready;
+  const fullyReady = assistedLaunchReady && ai.ready && forementionMiniAudit.ready;
 
   return {
     generatedAt: new Date().toISOString(),
