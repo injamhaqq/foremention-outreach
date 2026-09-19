@@ -40,11 +40,85 @@ function normalizeHttpUrl(value: string, label: string) {
   return url;
 }
 
+
+const NON_COMPANY_DISCOVERY_DOMAINS = [
+  // Social/community/profile surfaces: useful evidence sources, never canonical account domains.
+  "linkedin.com",
+  "twitter.com",
+  "x.com",
+  "facebook.com",
+  "instagram.com",
+  "youtube.com",
+  "tiktok.com",
+  "reddit.com",
+  "medium.com",
+  "substack.com",
+  "wikipedia.org",
+  "github.com",
+
+  // Hosted recruiting/ATS surfaces. Keep the vendors' own corporate domains targetable
+  // where possible by blocking their hosted-job subdomains rather than the whole vendor.
+  "boards.greenhouse.io",
+  "jobs.lever.co",
+  "myworkdayjobs.com",
+  "workdayjobs.com",
+  "jobs.ashbyhq.com",
+  "jobs.smartrecruiters.com",
+  "apply.workable.com",
+  "jobs.jobvite.com",
+  "ats.rippling.com",
+  "jobs.breezy.hr",
+  "indeed.com",
+  "glassdoor.com",
+  "wellfound.com",
+  "builtin.com",
+
+  // News/PR/database/review publishers. Their pages can establish timing evidence, but
+  // treating the publisher itself as the discovered prospect creates false accounts.
+  "techcrunch.com",
+  "reuters.com",
+  "bloomberg.com",
+  "businesswire.com",
+  "prnewswire.com",
+  "globenewswire.com",
+  "venturebeat.com",
+  "crunchbase.com",
+  "finance.yahoo.com",
+  "g2.com",
+  "capterra.com",
+  "trustradius.com",
+  "softwareadvice.com",
+
+  // Search/cache result surfaces.
+  "google.com",
+  "news.google.com",
+  "bing.com",
+] as const;
+
+function normalizedHostname(value: string) {
+  try {
+    return normalizeHttpUrl(value, "Domain").hostname.toLowerCase().replace(/^www\./, "");
+  } catch {
+    return "";
+  }
+}
+
+export function isNonCompanyDiscoveryDomain(value: string) {
+  const hostname = normalizedHostname(value);
+  if (!hostname) return false;
+  return NON_COMPANY_DISCOVERY_DOMAINS.some((blocked) =>
+    hostname === blocked || hostname.endsWith(`.${blocked}`)
+  );
+}
+
 export function normalizeDiscoveryCandidate(input: HunterDiscoveryCandidate): NormalizedHunterDiscoveryCandidate {
   const source = normalizeHttpUrl(input.sourceUrl, "Source URL");
   const domainUrl = normalizeHttpUrl(input.domain, "Domain");
   const domain = domainUrl.hostname.toLowerCase().replace(/^www\./, "");
   if (!domain || !domain.includes(".")) throw new Error("A valid company domain is required.");
+  if (isNonCompanyDiscoveryDomain(domain)) {
+    throw new Error(`${domain} is not a target-company domain; preserve it as third-party evidence only.`);
+  }
   const name = clean(input.name || domain, 300) || domain;
   const evidenceText = clean(input.evidenceText || input.name || domain, 4_000);
   return {
@@ -61,7 +135,14 @@ export function normalizeDiscoveryCandidate(input: HunterDiscoveryCandidate): No
 export function dedupeDiscoveryCandidates(inputs: HunterDiscoveryCandidate[]): NormalizedHunterDiscoveryCandidate[] {
   const byDomain = new Map<string, NormalizedHunterDiscoveryCandidate>();
   for (const input of inputs) {
-    const normalized = normalizeDiscoveryCandidate(input);
+    let normalized: NormalizedHunterDiscoveryCandidate;
+    try {
+      normalized = normalizeDiscoveryCandidate(input);
+    } catch {
+      // Search providers frequently return job boards, publishers and malformed URLs.
+      // One unusable result must not discard valid companies from the same provider.
+      continue;
+    }
     const existing = byDomain.get(normalized.domain);
     if (!existing) {
       byDomain.set(normalized.domain, normalized);
