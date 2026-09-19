@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "crypto";
 import type Database from "better-sqlite3";
+import { createHunterSalesTask } from "./sales-tasks";
 
 export type HunterReplyChannel = "email" | "linkedin";
 export type HunterReplyKind =
@@ -187,6 +188,38 @@ export function applyHunterReplyEvent(db: Database.Database, event: HunterReplyE
         route.suppression.reason,
         `reply:${event.channel}`,
       );
+    }
+
+    if (!route.suppression && route.nextAction === "human_reply") {
+      createHunterSalesTask(db, {
+        companyId: target.company_id,
+        targetId: event.targetId,
+        taskType: "human_reply",
+        priority: "high",
+        reason: `${route.normalizedKind} reply requires a personal response.`,
+        sourceReplyId: event.sourceReplyId ?? null,
+        dueAt: receivedAtIso,
+        metadata: { channel: event.channel, replyKind: route.normalizedKind },
+        dedupeKey: `${event.targetId}|reply|${event.sourceReplyId ?? receivedAtIso}`,
+      });
+    }
+
+    if (!route.suppression && route.nextAction === "follow_up_later") {
+      const defaultResumeAt = new Date(receivedAt.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+      const dueAt = event.resumeAt && Number.isFinite(new Date(event.resumeAt).getTime())
+        ? new Date(event.resumeAt).toISOString()
+        : defaultResumeAt;
+      createHunterSalesTask(db, {
+        companyId: target.company_id,
+        targetId: event.targetId,
+        taskType: "follow_up_later",
+        priority: "normal",
+        reason: "Prospect asked to follow up later.",
+        sourceReplyId: event.sourceReplyId ?? null,
+        dueAt,
+        metadata: { channel: event.channel, replyKind: route.normalizedKind },
+        dedupeKey: `${event.targetId}|follow_up_later|${event.sourceReplyId ?? receivedAtIso}`,
+      });
     }
   })();
 

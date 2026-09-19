@@ -106,6 +106,19 @@ export const HUNTER_SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_hunter_drafts_target_created
     ON hunter_message_drafts(target_id, created_at DESC);
 
+  CREATE TABLE IF NOT EXISTS hunter_draft_deliveries (
+    id TEXT PRIMARY KEY,
+    draft_id TEXT NOT NULL REFERENCES hunter_message_drafts(id) ON DELETE CASCADE,
+    run_id TEXT NOT NULL,
+    target_id TEXT NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
+    channel TEXT NOT NULL CHECK(channel IN ('email', 'linkedin')),
+    consumed_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(draft_id, run_id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_hunter_draft_deliveries_target_run
+    ON hunter_draft_deliveries(target_id, run_id, channel);
+
   CREATE TABLE IF NOT EXISTS hunter_approvals (
     id TEXT PRIMARY KEY,
     draft_id TEXT NOT NULL UNIQUE REFERENCES hunter_message_drafts(id) ON DELETE CASCADE,
@@ -170,6 +183,97 @@ export const HUNTER_SCHEMA_SQL = `
     occurred_at TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
+
+  CREATE TABLE IF NOT EXISTS hunter_source_runs (
+    id TEXT PRIMARY KEY,
+    provider_id TEXT NOT NULL,
+    query TEXT NOT NULL,
+    status TEXT NOT NULL CHECK(status IN ('running', 'success', 'failed')),
+    candidate_count INTEGER NOT NULL DEFAULT 0,
+    error TEXT,
+    started_at TEXT NOT NULL,
+    finished_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_hunter_source_runs_provider_created
+    ON hunter_source_runs(provider_id, created_at DESC);
+
+  CREATE TABLE IF NOT EXISTS hunter_discovery_evidence (
+    id TEXT PRIMARY KEY,
+    company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    dedupe_key TEXT NOT NULL UNIQUE,
+    query TEXT NOT NULL,
+    source_url TEXT NOT NULL,
+    source_name TEXT NOT NULL,
+    evidence_text TEXT NOT NULL,
+    observed_at TEXT NOT NULL,
+    last_seen_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_hunter_discovery_company_seen
+    ON hunter_discovery_evidence(company_id, last_seen_at DESC);
+
+  CREATE TABLE IF NOT EXISTS hunter_buyer_provenance (
+    id TEXT PRIMARY KEY,
+    target_id TEXT NOT NULL REFERENCES targets(id) ON DELETE CASCADE,
+    company_id TEXT NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+    dedupe_key TEXT NOT NULL UNIQUE,
+    provider TEXT NOT NULL,
+    provider_person_id TEXT,
+    confidence REAL NOT NULL DEFAULT 0,
+    last_seen_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_hunter_buyer_provenance_target
+    ON hunter_buyer_provenance(target_id, confidence DESC);
+
+  CREATE TABLE IF NOT EXISTS hunter_autopilot_decisions (
+    id TEXT PRIMARY KEY,
+    company_id TEXT REFERENCES companies(id) ON DELETE CASCADE,
+    target_id TEXT REFERENCES targets(id) ON DELETE CASCADE,
+    mode TEXT NOT NULL,
+    action TEXT NOT NULL,
+    allowed_email INTEGER NOT NULL DEFAULT 0,
+    allowed_linkedin INTEGER NOT NULL DEFAULT 0,
+    reasons_json TEXT NOT NULL DEFAULT '[]',
+    decided_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_hunter_autopilot_target_decided
+    ON hunter_autopilot_decisions(target_id, decided_at DESC);
+
+  CREATE TABLE IF NOT EXISTS hunter_sales_tasks (
+    id TEXT PRIMARY KEY,
+    company_id TEXT REFERENCES companies(id) ON DELETE CASCADE,
+    target_id TEXT REFERENCES targets(id) ON DELETE CASCADE,
+    dedupe_key TEXT NOT NULL UNIQUE,
+    task_type TEXT NOT NULL CHECK(task_type IN ('human_reply','follow_up_later','call','manual_review')),
+    status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending','completed','cancelled')),
+    priority TEXT NOT NULL DEFAULT 'normal' CHECK(priority IN ('high','normal','low')),
+    reason TEXT NOT NULL,
+    source_reply_id TEXT,
+    due_at TEXT,
+    metadata_json TEXT NOT NULL DEFAULT '{}',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_hunter_sales_tasks_status_due
+    ON hunter_sales_tasks(status, due_at, priority, created_at DESC);
+  CREATE INDEX IF NOT EXISTS idx_hunter_sales_tasks_target
+    ON hunter_sales_tasks(target_id, status);
+
+  CREATE TABLE IF NOT EXISTS hunter_channel_health_snapshots (
+    id TEXT PRIMARY KEY,
+    channel TEXT NOT NULL CHECK(channel IN ('email','linkedin')),
+    account_id TEXT,
+    healthy INTEGER NOT NULL DEFAULT 0,
+    remaining_capacity INTEGER NOT NULL DEFAULT 0,
+    reasons_json TEXT NOT NULL DEFAULT '[]',
+    measured_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE INDEX IF NOT EXISTS idx_hunter_channel_health_channel_measured
+    ON hunter_channel_health_snapshots(channel, measured_at DESC);
 
   CREATE TABLE IF NOT EXISTS hunter_cost_events (
     id TEXT PRIMARY KEY,

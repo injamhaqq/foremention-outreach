@@ -43,7 +43,7 @@ This fork adds **Foremention Customer Hunter**, an internal evidence-backed buye
 
 The operating flow is:
 
-`signal → qualification → evidence research → Foremention mini-audit → draft → human approval → Linki execution → reply routing → opportunity learning`
+`signal → qualification → evidence research → Foremention mini-audit → draft → policy/approval gate → Linki execution → reply routing → commercial outcome learning`
 
 Customer Hunter surfaces are available at:
 
@@ -51,16 +51,20 @@ Customer Hunter surfaces are available at:
 - `/hunter/signals` — attributable signal evidence and freshness.
 - `/hunter/research` — research, email/LinkedIn draft generation, and first-touch approval.
 - `/hunter/opportunities` — commercial pipeline and observed conversion metrics.
+- `/hunter/tasks` — high-priority human reply, follow-up, call, and manual-review work.
 
 ### Safety and evidence boundaries
 
-- First-touch cold outreach requires explicit human approval before enrollment.
+- **Assisted mode** is the production launch default and requires human approval for first touch. Guarded/full-auto modes must be selected explicitly and still honor evidence, suppression, verified-email, reply-stop, account-limit, and channel-health gates.
+- The production canary is separately armed, hard-forces assisted mode, limits discovery to one query / five results / two companies / two buyers per company, and cannot auto-send first touches.
 - Any genuine human reply stops automated follow-up across both email and LinkedIn for that contact.
 - Unsubscribe, complaint, hard bounce, and negative intent create durable suppressions that AI cannot override.
 - Personalized factual claims must trace back to stored evidence or a bounded Foremention mini-audit.
 - The Foremention private mini-audit accepts only 3–5 questions and is server-to-server only.
+- Email execution requires a verified/valid/deliverable work-email state at both decision time and send time.
+- Provider usage is recorded separately from known monetary cost; unknown provider pricing is never presented as zero-dollar spend.
 - Automated tests and CI use synthetic fixtures and do **not** send real external prospect messages.
-- `paid_customer` cannot be recorded without explicit commercial evidence.
+- `paid_pilot`, `customer`, and `expansion` transitions require explicit commercial evidence.
 
 ### Customer Hunter environment
 
@@ -84,9 +88,27 @@ Verification commands:
 
 ```bash
 npm run test:hunter
-npx eslint lib/hunter tests/hunter
+npx eslint lib/hunter tests/hunter tests/e2e playwright.config.ts pages/hunter pages/api/hunter components/hunter
 npm run build
+docker build --build-arg APP_VERSION="$(git rev-parse HEAD)" -t foremention-outreach:local .
+npm run test:e2e:hunter
 ```
+
+The CI gate also starts the built production container and requires `/healthz` to pass before browser acceptance.
+
+For the low-cash-cost production architecture, provider choices, backup profile, and
+tools intentionally rejected as unnecessary or unsafe, see
+[`docs/FREE_PRODUCTION_STACK.md`](docs/FREE_PRODUCTION_STACK.md).
+
+Optional off-host SQLite backup can be enabled after configuring the documented
+`LITESTREAM_*` variables:
+
+```bash
+docker compose --profile backup up -d
+```
+
+Keep exactly one Litestream replicator for this database/replica path and test a
+restore before treating backup as production-ready.
 
 ---
 
@@ -190,18 +212,17 @@ AUTH_PASSWORD=your_password_here
 docker compose up -d
 ```
 
-Or pull the image directly:
+For this Foremention fork, do **not** deploy the upstream Linki image: it does not contain Customer Hunter. To run the repository image directly:
 
 ```bash
-docker run -d -p 3456:3000 \
-  -e NEXTAUTH_URL=http://localhost:3456 \
-  -e NEXTAUTH_SECRET=your_random_secret_here \
-  -e AUTH_PASSWORD=your_password_here \
-  -v $(pwd)/data:/data \
-  moaljumaa/linki:latest
+docker build -t foremention-outreach:local .
+docker run -d --name foremention-outreach -p 3456:3000 \
+  --env-file .env.local \
+  -v "$(pwd)/data:/data" \
+  foremention-outreach:local
 ```
 
-Linki is now running at `http://localhost:3456`. The SQLite database is persisted in `./data/linki.db` on your host machine.
+Foremention Outreach is then available at `http://localhost:3456`, with a public non-sensitive container health check at `/healthz`. SQLite state is persisted in `./data/linki.db` when using the provided Compose volume.
 
 ### Self-host manually (Node.js)
 

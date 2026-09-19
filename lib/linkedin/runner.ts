@@ -6,6 +6,8 @@ import { sendConnectionRequest, WeeklyLimitError, AlreadyConnectedError, Pending
 import { sendMessage, NotConnectedError } from "@/lib/linkedin/message";
 import { shouldSyncAccepted, syncAcceptedConnections } from "@/lib/linkedin/sync-accepted";
 import { sendEmail } from "@/lib/email/sender";
+import { getPendingHunterFirstTouch, markHunterFirstTouchDelivered } from "@/lib/hunter/message-resolver";
+import { hasVerifiedWorkEmail } from "@/lib/hunter/contact-verification";
 import { shouldSyncEmailInbox, syncEmailInbox } from "@/lib/email/inbox";
 import { enrichProfile } from "@/lib/linkedin/enrich";
 import { matchPerson } from "@/lib/apollo";
@@ -567,8 +569,16 @@ async function executeStep(
         return;
       }
 
+      const hunterFirstTouchDraft = getPendingHunterFirstTouch(db, {
+        targetId: target.id,
+        runId,
+        channel: "linkedin",
+      });
       let messageText = "";
-      if (step.ai_enabled) {
+      if (hunterFirstTouchDraft) {
+        messageText = hunterFirstTouchDraft.body;
+        log(db, runId, target.id, "info", `Using evidence-backed Hunter LinkedIn first touch for ${name}`);
+      } else if (step.ai_enabled) {
         if (!premium?.ai) {
           log(db, runId, target.id, "warn", `AI writer is a premium feature — not available in this build. Skipping ${name}`);
           trAdvance(db, tr, steps);
@@ -653,6 +663,14 @@ async function executeStep(
       }
       await saveSessionState(accountId);
       db.prepare("UPDATE targets SET message_sent_at = ? WHERE id = ?").run(nowIso(), target.id);
+      if (hunterFirstTouchDraft) {
+        markHunterFirstTouchDelivered(db, {
+          draftId: hunterFirstTouchDraft.id,
+          runId,
+          targetId: target.id,
+          channel: "linkedin",
+        });
+      }
       trRecordContext(db, tr, { linkedinMessage: messageText });
       trAdvance(db, tr, steps);
       log(db, runId, target.id, "info", `Message sent to ${name}`);
@@ -778,9 +796,15 @@ async function executeStep(
         trSkip(db, tr, "No email address found");
         return;
       }
-      if (freshTarget.email_status === "invalid") {
-        log(db, runId, target.id, "warn", `${name} has an invalid email address — unenrolling email track`);
-        trSkip(db, tr, "Email bounced — invalid address");
+      if (!hasVerifiedWorkEmail(freshTarget.email, freshTarget.email_status)) {
+        log(
+          db,
+          runId,
+          target.id,
+          "warn",
+          `${name} does not have a verified work email (status: ${freshTarget.email_status ?? "unknown"}) — unenrolling email track`,
+        );
+        trSkip(db, tr, "Verified work email required");
         return;
       }
       if (freshTarget.company_id) {
@@ -792,9 +816,18 @@ async function executeStep(
         }
       }
 
+      const hunterFirstTouchDraft = getPendingHunterFirstTouch(db, {
+        targetId: target.id,
+        runId,
+        channel: "email",
+      });
       let emailSubject = "";
       let emailBody = "";
-      if (step.ai_enabled) {
+      if (hunterFirstTouchDraft) {
+        emailSubject = hunterFirstTouchDraft.subject ?? "";
+        emailBody = hunterFirstTouchDraft.body;
+        log(db, runId, target.id, "info", `Using evidence-backed Hunter email first touch for ${name}`);
+      } else if (step.ai_enabled) {
         if (!premium?.ai) {
           log(db, runId, target.id, "warn", `AI writer is a premium feature — not available in this build. Skipping ${name}`);
           trAdvance(db, tr, steps);
@@ -896,6 +929,14 @@ async function executeStep(
       db.prepare("UPDATE run_profile_tracks SET last_step_at = datetime('now') WHERE id = ?").run(tr.id);
       log(db, runId, target.id, "info", `Sending email to ${name} <${freshTarget.email}>`);
       await sendEmail({ ...emailAccount, password: decryptSecret(emailAccount.password)! }, freshTarget.email, emailSubject, finalEmailBody);
+      if (hunterFirstTouchDraft) {
+        markHunterFirstTouchDelivered(db, {
+          draftId: hunterFirstTouchDraft.id,
+          runId,
+          targetId: target.id,
+          channel: "email",
+        });
+      }
       trRecordContext(db, tr, { emailSubject, emailBody });
       trAdvance(db, tr, steps);
       log(db, runId, target.id, "info", `Email sent to ${name}`);

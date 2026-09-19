@@ -49,7 +49,7 @@ function isSuppressed(db: Database.Database, targetId: string, companyId: string
 
 export function enrollApprovedHunterDraft(
   db: Database.Database,
-  input: { draftId: string; runId: string },
+  input: { draftId: string; runId: string; allowedChannels?: Array<"email" | "linkedin"> },
 ): HunterEnrollmentResult {
   const draft = draftFor(db, input.draftId);
   if (!draft) throw new Error("Hunter draft not found.");
@@ -72,10 +72,15 @@ export function enrollApprovedHunterDraft(
     return { enrolled: false, alreadyEnrolled: true, runProfileId: existing.id };
   }
 
-  const tracks = (db.prepare(
+  let tracks = (db.prepare(
     "SELECT DISTINCT track FROM workflow_steps WHERE workflow_id = ? ORDER BY track"
   ).all(run.workflow_id) as Array<{ track: string }>).map((row) => row.track);
   if (!tracks.length) tracks.push(draft.channel);
+  if (input.allowedChannels?.length) {
+    const allowed = new Set(input.allowedChannels);
+    tracks = tracks.filter((track) => allowed.has(track as "email" | "linkedin"));
+  }
+  if (!tracks.length) throw new Error("No allowed outreach channels remain for enrollment.");
   if (tracks.includes("email") && !run.email_account_id) {
     throw new Error("Email account required for the selected outreach run.");
   }

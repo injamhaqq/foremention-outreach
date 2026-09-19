@@ -13,7 +13,7 @@ permissions:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -25,13 +25,48 @@ jobs:
           cache: npm
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --legacy-peer-deps
+
+      - name: Audit production dependencies for critical vulnerabilities
+        run: npm audit --omit=dev --audit-level=critical
 
       - name: Customer Hunter tests
         run: npm run test:hunter
 
       - name: Lint Customer Hunter code
-        run: npx eslint lib/hunter tests/hunter
+        run: npx eslint lib/hunter tests/hunter tests/e2e playwright.config.ts pages/hunter pages/api/hunter components/hunter
 
       - name: Build
         run: npm run build
+
+      - name: Validate Docker Compose production + backup profiles
+        run: |
+          touch .env.local
+          docker compose --profile backup config >/dev/null
+
+      - name: Build production Docker image
+        run: docker build --build-arg APP_VERSION="${GITHUB_SHA}" --tag foremention-outreach:ci .
+
+      - name: Smoke-test production container health
+        run: |
+          docker run --rm -d --name foremention-outreach-ci -p 3101:3000 \
+            -e NEXTAUTH_URL=http://127.0.0.1:3101 \
+            -e NEXTAUTH_SECRET=customer-hunter-ci-nextauth-secret \
+            -e AUTH_PASSWORD=customer-hunter-ci-password \
+            -e INTERNAL_API_SECRET=customer-hunter-ci-internal-secret \
+            foremention-outreach:ci
+          trap 'docker rm -f foremention-outreach-ci >/dev/null 2>&1 || true' EXIT
+          for attempt in {1..30}; do
+            if curl --fail --silent --show-error http://127.0.0.1:3101/healthz >/dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs foremention-outreach-ci
+          exit 1
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Customer Hunter browser acceptance
+        run: npm run test:e2e:hunter

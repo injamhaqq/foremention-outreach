@@ -1,11 +1,16 @@
 import Head from "next/head";
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import BuyerCard, { type BuyerCardItem } from "@/components/hunter/BuyerCard";
 import type { HunterRoute } from "@/lib/hunter/types";
+import type { HunterOperationsSnapshot } from "@/lib/hunter/operations";
+import type { HunterReadiness } from "@/lib/hunter/readiness";
 
 type FeedResponse = {
   data: BuyerCardItem[];
   counts: Record<HunterRoute, number>;
+  operations: HunterOperationsSnapshot;
+  readiness: HunterReadiness;
   generatedAt: string;
 };
 
@@ -27,9 +32,27 @@ function Metric({ label, value, detail }: { label: string; value: number; detail
   );
 }
 
+
+function ChannelHealth({ label, health }: {
+  label: string;
+  health: HunterOperationsSnapshot["health"]["channels"]["email"];
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className={`w-2 h-2 rounded-full ${health.healthy ? "bg-success" : "bg-error"}`} />
+      <span className="text-xs text-base-content/65">{label}</span>
+      <span className="text-[10px] text-base-content/35">
+        {health.healthy ? `${health.remainingCapacity} capacity` : health.reasons.join(", ").replaceAll("_", " ")}
+      </span>
+    </div>
+  );
+}
+
 export default function HunterBuyerFeedPage() {
   const [feed, setFeed] = useState<FeedResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [discovering, setDiscovering] = useState(false);
+  const [canaryRunning, setCanaryRunning] = useState(false);
   const [error, setError] = useState("");
   const [filter, setFilter] = useState<"all" | HunterRoute>("all");
   const [query, setQuery] = useState("");
@@ -48,6 +71,41 @@ export default function HunterBuyerFeedPage() {
       setLoading(false);
     }
   }, []);
+
+  const findBuyersNow = useCallback(async () => {
+    setDiscovering(true);
+    setError("");
+    try {
+      const response = await fetch("/api/hunter/discover", { method: "POST" });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error || "Buyer discovery could not be started.");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Buyer discovery could not be started.");
+    } finally {
+      setDiscovering(false);
+    }
+  }, [refresh]);
+
+  const runAssistedCanary = useCallback(async () => {
+    if (!window.confirm("Run the hard-capped assisted production canary? It can use live providers and create review drafts, but it cannot auto-send first touches.")) return;
+    setCanaryRunning(true);
+    setError("");
+    try {
+      const response = await fetch("/api/hunter/canary", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ confirmation: "RUN_ASSISTED_CANARY" }),
+      });
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error || "Assisted canary could not be run.");
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Assisted canary could not be run.");
+    } finally {
+      setCanaryRunning(false);
+    }
+  }, [refresh]);
 
   useEffect(() => { void refresh(); }, [refresh]);
 
@@ -77,11 +135,60 @@ export default function HunterBuyerFeedPage() {
               Intent buyers, evidence, research, and multichannel cold outreach in one operating view.
             </p>
           </div>
-          <button onClick={() => void refresh()} disabled={loading} className="btn btn-sm btn-primary">
-            {loading ? <span className="loading loading-spinner loading-xs" /> : null}
-            Find buyers now
-          </button>
+          <div className="flex gap-2 flex-wrap">
+            <Link href="/hunter/tasks" className="btn btn-sm btn-outline">
+              Sales tasks
+              {feed?.operations?.salesTasks.pending ? (
+                <span className="badge badge-sm badge-error">{feed.operations.salesTasks.pending}</span>
+              ) : null}
+            </Link>
+            {feed?.readiness?.canary.enabled && (
+              <button
+                onClick={() => void runAssistedCanary()}
+                disabled={loading || discovering || canaryRunning || !feed.readiness.fullyReady}
+                className="btn btn-sm btn-warning btn-outline"
+                title={feed.readiness.fullyReady ? "Runs a hard-capped assisted canary with no auto-send" : "Resolve readiness blockers first"}
+              >
+                {canaryRunning ? <span className="loading loading-spinner loading-xs" /> : null}
+                {canaryRunning ? "Running canary…" : "Run assisted canary"}
+              </button>
+            )}
+            <button onClick={() => void findBuyersNow()} disabled={loading || discovering || canaryRunning} className="btn btn-sm btn-primary">
+              {discovering ? <span className="loading loading-spinner loading-xs" /> : null}
+              {discovering ? "Finding buyers…" : "Find buyers now"}
+            </button>
+          </div>
         </div>
+
+        {feed?.readiness && (
+          <div className={`border rounded-xl px-4 py-3 mb-4 ${feed.readiness.fullyReady ? "border-success/20 bg-success/5" : "border-warning/20 bg-warning/5"}`}>
+            <div className="flex items-start justify-between gap-4 flex-wrap">
+              <div>
+                <div className={`text-xs font-medium ${feed.readiness.fullyReady ? "text-success" : "text-warning"}`}>
+                  {feed.readiness.fullyReady
+                    ? "Customer acquisition configuration ready"
+                    : feed.readiness.assistedLaunchReady
+                      ? "Core acquisition ready · Foremention mini-audit still needs configuration"
+                      : "Customer acquisition setup has blockers"}
+                </div>
+                {!feed.readiness.fullyReady && (
+                  <div className="text-[11px] text-base-content/45 mt-1">
+                    {[
+                      ...feed.readiness.discovery.reasons,
+                      ...feed.readiness.buyers.reasons,
+                      ...feed.readiness.ai.reasons,
+                      ...feed.readiness.execution.reasons,
+                      ...feed.readiness.forementionMiniAudit.reasons,
+                    ].map((item) => item.replaceAll("_", " ")).join(" · ")}
+                  </div>
+                )}
+              </div>
+              <div className="text-[10px] text-base-content/35">
+                Mode: {feed.readiness.execution.autopilotMode} · {feed.readiness.execution.channels.verifiedEmailAccounts} verified email · {feed.readiness.execution.channels.authenticatedLinkedInAccounts} LinkedIn
+              </div>
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-6">
           <Metric label="Ready to contact" value={ready} detail="Fit + intent + reachable buyer" />
@@ -90,6 +197,73 @@ export default function HunterBuyerFeedPage() {
           <Metric label="Cold fit" value={counts.cold_fit} detail="Usable with a strong angle" />
           <Metric label="Monitoring" value={counts.monitor} detail="Waiting for a better trigger" />
         </div>
+
+        {feed?.operations && (
+          <section className="bg-base-200 border border-base-300/50 rounded-xl p-4 mb-6">
+            <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+              <div>
+                <div className="text-sm font-medium text-base-content">Today</div>
+                <div className="text-[10px] text-base-content/35">Observed activity and current operational state — no projected conversions.</div>
+              </div>
+              <div className="flex items-center gap-4 flex-wrap">
+                <ChannelHealth label="Email" health={feed.operations.health.channels.email} />
+                <ChannelHealth label="LinkedIn" health={feed.operations.health.channels.linkedin} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-2">
+              <Metric label="Accounts monitored" value={feed.operations.today.accountsMonitored} detail="Seen today" />
+              <Metric label="New signals" value={feed.operations.today.newSignals} detail="Captured today" />
+              <Metric label="Buyers discovered" value={feed.operations.today.buyersDiscovered} detail="New buyer provenance" />
+              <Metric label="Verified contacts" value={feed.operations.today.verifiedContacts} detail="Current verified work emails" />
+              <Metric label="Waiting approval" value={feed.operations.today.messagesWaitingApproval} detail="Draft first touches" />
+              <Metric label="Replies" value={feed.operations.today.replies} detail="Classified today" />
+              <Metric label="Positive replies" value={feed.operations.today.positiveReplies} detail="Human-positive today" />
+              <Metric label="Sales tasks" value={feed.operations.salesTasks.pending} detail={`${feed.operations.salesTasks.highPriority} high priority`} />
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-2 text-xs">
+              <div className="rounded-lg border border-base-300/50 bg-base-300/20 px-3 py-2">
+                <div className="text-base-content/35 text-[10px] uppercase tracking-wider">Meetings+</div>
+                <div className="text-base-content font-semibold mt-0.5">{feed.operations.pipeline.meetingsOrBeyond.toLocaleString()}</div>
+              </div>
+              <div className="rounded-lg border border-base-300/50 bg-base-300/20 px-3 py-2">
+                <div className="text-base-content/35 text-[10px] uppercase tracking-wider">Active pilots+</div>
+                <div className="text-base-content font-semibold mt-0.5">{feed.operations.pipeline.activePilotsOrBeyond.toLocaleString()}</div>
+              </div>
+              <div className="rounded-lg border border-base-300/50 bg-base-300/20 px-3 py-2">
+                <div className="text-base-content/35 text-[10px] uppercase tracking-wider">Paid customers</div>
+                <div className="text-base-content font-semibold mt-0.5">{feed.operations.pipeline.paidCustomers.toLocaleString()}</div>
+              </div>
+              <div className="rounded-lg border border-base-300/50 bg-base-300/20 px-3 py-2">
+                <div className="text-base-content/35 text-[10px] uppercase tracking-wider">Source failures 24h</div>
+                <div className="text-base-content font-semibold mt-0.5">{feed.operations.health.sourceFailures24h.toLocaleString()}</div>
+              </div>
+              <div className="rounded-lg border border-base-300/50 bg-base-300/20 px-3 py-2">
+                <div className="text-base-content/35 text-[10px] uppercase tracking-wider">Known spend today</div>
+                <div className="text-base-content font-semibold mt-0.5">${feed.operations.costs.knownUsd.toFixed(2)}</div>
+                {Object.keys(feed.operations.costs.unitsByType).length > 0 && (
+                  <div className="text-[9px] text-base-content/35 mt-0.5">
+                    {Object.entries(feed.operations.costs.unitsByType)
+                      .map(([unit, value]) => `${value.toLocaleString()} ${unit}`)
+                      .join(" · ")}
+                  </div>
+                )}
+                {feed.operations.costs.unknownCostEvents > 0 && (
+                  <div className="text-[9px] text-warning/70 mt-0.5">
+                    {feed.operations.costs.unknownCostEvents} usage event{feed.operations.costs.unknownCostEvents === 1 ? "" : "s"} with unknown price
+                  </div>
+                )}
+              </div>
+              <div className="rounded-lg border border-base-300/50 bg-base-300/20 px-3 py-2">
+                <div className="text-base-content/35 text-[10px] uppercase tracking-wider">Autopilot</div>
+                <div className="text-base-content font-semibold mt-0.5">
+                  {feed.operations.autopilot.autoStartedToday} auto · {feed.operations.autopilot.approvalRequiredToday} review · {feed.operations.autopilot.blockedToday} blocked
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
 
         <div className="bg-base-200 border border-base-300/50 rounded-xl p-3 mb-4 flex items-center gap-3 flex-wrap">
           <div className="join">
