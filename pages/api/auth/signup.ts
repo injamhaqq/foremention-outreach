@@ -36,6 +36,11 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   }
 
   const db = getDb();
+  const userCount = (db.prepare("SELECT COUNT(*) AS count FROM users").get() as { count: number }).count;
+  if (userCount > 0) {
+    return res.status(403).json({ error: "Signup is closed. Sign in with the existing admin account." });
+  }
+
   const existing = db.prepare("SELECT id FROM users WHERE email = ?").get(email);
   if (existing) {
     return res.status(409).json({ error: "An account with this email already exists." });
