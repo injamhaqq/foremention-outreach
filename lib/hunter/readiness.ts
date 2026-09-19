@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import { evaluateHunterPersistenceReadiness } from "./persistence-readiness";
 import { isFirecrawlDiscoveryConfigured } from "./source-providers";
 
 function value(env: NodeJS.ProcessEnv, key: string) {
@@ -56,6 +57,8 @@ export function evaluateHunterReadiness(
   db: Database.Database,
   env: NodeJS.ProcessEnv = process.env,
 ) {
+  const persistence = evaluateHunterPersistenceReadiness(db, env);
+
   const discoveryReasons: string[] = [];
   const discoveryEnabled = value(env, "HUNTER_DISCOVERY_ENABLED").toLowerCase() !== "false";
   const firecrawlConfigured = isFirecrawlDiscoveryConfigured(env);
@@ -137,11 +140,12 @@ export function evaluateHunterReadiness(
 
   // External AI improves research and enables Foremention-native mini-audits,
   // but evidence-only drafting keeps the assisted launch path functional.
-  const assistedLaunchReady = discovery.ready && buyers.ready && execution.ready;
+  const assistedLaunchReady = persistence.ready && discovery.ready && buyers.ready && execution.ready;
   const fullyReady = assistedLaunchReady && ai.ready && forementionMiniAudit.ready;
 
   return {
     generatedAt: new Date().toISOString(),
+    persistence,
     discovery,
     buyers,
     ai,
