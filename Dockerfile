@@ -25,6 +25,7 @@ RUN echo "deb [check-valid-until=no] http://snapshot.debian.org/archive/debian/2
   chromium=149.0.7827.155-1~deb12u1 \
   chromium-common=149.0.7827.155-1~deb12u1 \
   chromium-sandbox=149.0.7827.155-1~deb12u1 \
+  gosu \
   libatk-bridge2.0-0 \
   libatk1.0-0 \
   libcups2 \
@@ -57,11 +58,15 @@ ENV APP_VERSION=$APP_VERSION
 
 RUN npm run build
 
-# Data directory — mount a volume here to persist the SQLite DB
-RUN mkdir -p /data && chown node:node /data
+# Data directory — mount a Railway volume here to persist the SQLite DB.
+# Railway mounts volumes as root, so the entrypoint repairs ownership at runtime
+# and immediately drops application privileges back to the node user.
+RUN mkdir -p /data && chown node:node /data \
+  && install -m 0755 scripts/docker-entrypoint.sh /usr/local/bin/foremention-entrypoint
 ENV LINKI_DB_PATH=/data/linki.db
 
-USER node
+USER root
+ENTRYPOINT ["/usr/local/bin/foremention-entrypoint"]
 
 EXPOSE 3000
 
