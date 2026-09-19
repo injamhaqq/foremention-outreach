@@ -26,7 +26,7 @@ function deterministicHunterDraft(packet: HunterResearchPacket, channel: HunterD
     : observed;
   const body = channel === "linkedin"
     ? `${firstName} — noticed ${observation} I can send the short evidence breakdown if useful.`
-    : `${firstName} — noticed ${observation}\n\nI pulled together the supporting evidence and can send the short breakdown if useful.`;
+    : `${firstName} — noticed ${observation}\n\nI pulled together the supporting evidence and can send the short evidence breakdown if useful.`;
   return {
     subject: channel === "email" ? `${packet.company.name}: AI-search signal` : undefined,
     body,
