@@ -144,3 +144,35 @@ test("assisted launch can operate with evidence-only drafting while full readine
   assert.equal(result.assistedLaunchReady, true);
   assert.equal(result.fullyReady, false);
 });
+
+
+test("production readiness stays closed until SQLite state survives a Railway deployment change", () => {
+  const db = makeDb();
+  const baseEnv = {
+    NODE_ENV: "production",
+    RAILWAY_PROJECT_ID: "project-1",
+    HUNTER_DISCOVERY_ENABLED: "true",
+    SEARXNG_URL: "http://searxng:8080",
+    HUNTER_AI_PROVIDER: "ollama",
+    OLLAMA_MODEL: "qwen3:8b",
+    FOREMENTION_OUTREACH_SECRET: "shared-secret",
+    HUNTER_AUTOPILOT_MODE: "assisted",
+    HUNTER_DEFAULT_RUN_ID: "run-1",
+  } as NodeJS.ProcessEnv;
+
+  const first = evaluateHunterReadiness(db, {
+    ...baseEnv,
+    RAILWAY_DEPLOYMENT_ID: "deploy-1",
+  });
+  assert.equal(first.persistence.ready, false);
+  assert.equal(first.assistedLaunchReady, false);
+  assert.equal(first.persistence.reasons.includes("persistent_storage_has_not_survived_a_deployment_change"), true);
+
+  const second = evaluateHunterReadiness(db, {
+    ...baseEnv,
+    RAILWAY_DEPLOYMENT_ID: "deploy-2",
+  });
+  assert.equal(second.persistence.ready, true);
+  assert.equal(second.assistedLaunchReady, true);
+  assert.equal(second.fullyReady, true);
+});
