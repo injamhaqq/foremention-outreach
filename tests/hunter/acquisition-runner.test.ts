@@ -210,3 +210,32 @@ test("acquisition cycle can create assisted evidence-only drafts without an exte
   assert.equal(drafts.length, 2);
   assert.equal(drafts.every((draft) => /evidence breakdown/i.test(draft.body)), true);
 });
+
+
+test("production acquisition stays idle until persistent state survives a deployment change", async () => {
+  const db = makeDb();
+  let discoveryCalls = 0;
+  const result = await runHunterAcquisitionCycle(db, {
+    env: {
+      NODE_ENV: "production",
+      RAILWAY_PROJECT_ID: "project-1",
+      RAILWAY_DEPLOYMENT_ID: "deploy-1",
+      HUNTER_DISCOVERY_ENABLED: "true",
+      HUNTER_AUTOPILOT_MODE: "assisted",
+    } as NodeJS.ProcessEnv,
+    forceDiscovery: true,
+    discoveryProviders: [{
+      id: "should-not-run",
+      search: async () => {
+        discoveryCalls += 1;
+        return [];
+      },
+    }],
+    buyerProviders: [],
+  });
+
+  assert.equal(discoveryCalls, 0);
+  assert.equal(result.discovery, null);
+  assert.equal(result.discoverySkippedReason, "persistent_storage_not_ready");
+  assert.equal(result.autopilotSkippedReason, "persistent_storage_not_ready");
+});
