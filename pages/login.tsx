@@ -1,5 +1,4 @@
 import Head from "next/head";
-import Image from "next/image";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/router";
 import { useState } from "react";
@@ -70,16 +69,16 @@ export default function LoginPage() {
   return (
     <>
     <Head>
-      <title>Sign in — Linki</title>
+      <title>Sign in — Foremention Outreach</title>
       <meta name="robots" content="noindex, nofollow" />
     </Head>
     <div className="min-h-screen bg-base-100 flex items-center justify-center">
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="flex flex-col items-center gap-3 mb-8">
-          <Image src="/logo_linki.png" alt="Linki" width={40} height={40} className="rounded-xl" />
+          <div className="w-10 h-10 rounded-xl bg-primary text-primary-content flex items-center justify-center font-semibold text-lg">F</div>
           <div className="text-center">
-            <h1 className="text-base-content font-semibold text-lg">Linki</h1>
+            <h1 className="text-base-content font-semibold text-lg">Foremention Outreach</h1>
             <p className="text-base-content/50 text-sm">
               {mode === "signin" ? "Sign in to continue" : "Create your account"}
             </p>
