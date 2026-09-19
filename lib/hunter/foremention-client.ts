@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { signMiniAuditRequest } from "./request-signing";
+import { signMiniAuditRequest, stableMiniAuditJson } from "./request-signing";
 
 const citationSchema = z.object({
   url: z.string().min(1),
@@ -67,7 +67,7 @@ export async function requestForementionMiniAudit(
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   const path = "/api/internal/outreach/mini-audit";
-  const bodyText = JSON.stringify(input);
+  const bodyText = stableMiniAuditJson(input);
   const timestamp = new Date().toISOString();
   const signed = signMiniAuditRequest(secret, {
     timestamp,
