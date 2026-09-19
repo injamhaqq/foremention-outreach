@@ -7,6 +7,10 @@ type HealthProps = {
   version: string;
 };
 
+function healthVersion() {
+  return String(process.env.APP_VERSION || process.env.RAILWAY_GIT_COMMIT_SHA || "dev");
+}
+
 export const getServerSideProps: GetServerSideProps<HealthProps> = async ({ res }) => {
   try {
     const db = getDb();
@@ -16,7 +20,7 @@ export const getServerSideProps: GetServerSideProps<HealthProps> = async ({ res 
     return {
       props: {
         ok: true,
-        version: String(process.env.APP_VERSION || "dev"),
+        version: healthVersion(),
       },
     };
   } catch {
@@ -25,7 +29,7 @@ export const getServerSideProps: GetServerSideProps<HealthProps> = async ({ res 
     return {
       props: {
         ok: false,
-        version: String(process.env.APP_VERSION || "dev"),
+        version: healthVersion(),
       },
     };
   }

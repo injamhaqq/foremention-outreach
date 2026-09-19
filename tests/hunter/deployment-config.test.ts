@@ -35,3 +35,9 @@ test("Railway volume startup repairs /data ownership then drops privileges to no
   assert.match(entrypoint, /chown node:node \/data/);
   assert.match(entrypoint, /exec gosu node "\$@"/);
 });
+
+
+test("production health exposes Railway commit provenance when APP_VERSION is absent", () => {
+  const healthPage = readFileSync(resolve(process.cwd(), "pages/healthz.tsx"), "utf8");
+  assert.match(healthPage, /process\.env\.APP_VERSION\s*\|\|\s*process\.env\.RAILWAY_GIT_COMMIT_SHA\s*\|\|\s*"dev"/);
+});
