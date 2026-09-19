@@ -37,7 +37,8 @@ test("Railway volume startup repairs /data ownership then drops privileges to no
 });
 
 
-test("production health exposes Railway commit provenance when APP_VERSION is absent", () => {
+test("production health prefers Railway commit provenance over the Docker dev placeholder", () => {
   const healthPage = readFileSync(resolve(process.cwd(), "pages/healthz.tsx"), "utf8");
-  assert.match(healthPage, /process\.env\.APP_VERSION\s*\|\|\s*process\.env\.RAILWAY_GIT_COMMIT_SHA\s*\|\|\s*"dev"/);
+  assert.match(healthPage, /appVersion && appVersion !== "dev"/);
+  assert.match(healthPage, /process\.env\.RAILWAY_GIT_COMMIT_SHA\s*\|\|\s*appVersion\s*\|\|\s*"dev"/);
 });

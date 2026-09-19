@@ -8,7 +8,9 @@ type HealthProps = {
 };
 
 function healthVersion() {
-  return String(process.env.APP_VERSION || process.env.RAILWAY_GIT_COMMIT_SHA || "dev");
+  const appVersion = String(process.env.APP_VERSION || "").trim();
+  if (appVersion && appVersion !== "dev") return appVersion;
+  return String(process.env.RAILWAY_GIT_COMMIT_SHA || appVersion || "dev");
 }
 
 export const getServerSideProps: GetServerSideProps<HealthProps> = async ({ res }) => {
