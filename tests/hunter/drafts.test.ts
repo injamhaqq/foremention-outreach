@@ -33,3 +33,19 @@ test("draft generator returns short evidence-backed LinkedIn first touch", async
   assert.equal(draft.evidenceIds[0], "signal-1");
   assert.ok(draft.body.length < 500);
 });
+
+
+test("draft generator has a deterministic evidence-only fallback when no AI provider is configured", async () => {
+  const email = await generateHunterDraft(packet, "email");
+  assert.equal(email.channel, "email");
+  assert.match(email.subject || "", /Acme/);
+  assert.match(email.body, /Acme is hiring for AI search/i);
+  assert.match(email.body, /evidence breakdown/i);
+  assert.deepEqual(email.evidenceIds, ["signal-1"]);
+
+  const linkedin = await generateHunterDraft(packet, "linkedin", null);
+  assert.equal(linkedin.channel, "linkedin");
+  assert.ok(linkedin.body.length < 500);
+  assert.match(linkedin.body, /^Jane — noticed /);
+  assert.deepEqual(linkedin.evidenceIds, ["signal-1"]);
+});
