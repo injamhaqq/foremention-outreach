@@ -4,6 +4,7 @@ import {
   createApolloBuyerProvider,
   createHunterDomainBuyerProvider,
   createProspeoBuyerProvider,
+  createSearxngBuyerProvider,
   runBuyerProviders,
 } from "../../lib/hunter/buyer-providers";
 
@@ -249,4 +250,45 @@ test("buyer waterfall keeps going when selected buyers still lack verified work 
   assert.equal(secondCalls, 1);
   assert.deepEqual(result.buyers.map((buyer) => buyer.email).sort(), ["jane@acme.com", "john@acme.com"]);
   assert.equal(result.buyers.every((buyer) => buyer.emailStatus === "verified"), true);
+});
+
+
+test("SearXNG buyer fallback discovers matching LinkedIn decision-makers without inventing email", async () => {
+  const usage: Array<{ provider: string; eventType: string; units: number; unitType: string }> = [];
+  const provider = createSearxngBuyerProvider({
+    baseUrl: "http://searxng:8080",
+    onUsage: (event) => usage.push(event),
+    fetchImpl: async (input) => {
+      const url = new URL(String(input));
+      assert.equal(url.pathname, "/search");
+      assert.equal(url.searchParams.get("format"), "json");
+      assert.match(url.searchParams.get("q") || "", /site:linkedin\.com\/in/i);
+      assert.match(url.searchParams.get("q") || "", /acme\.com/i);
+      return new Response(JSON.stringify({
+        results: [
+          {
+            url: "https://www.linkedin.com/in/jane-doe",
+            title: "Jane Doe - Head of SEO at Acme | LinkedIn",
+            content: "Jane leads SEO and organic growth at Acme.",
+          },
+          {
+            url: "https://www.linkedin.com/company/acme",
+            title: "Acme | LinkedIn",
+            content: "Company page",
+          },
+        ],
+      }), { status: 200 });
+    },
+  });
+
+  const results = await provider.findBuyers({ domain: "acme.com", titles: ["Head of SEO", "VP Marketing"], limit: 3 });
+  assert.equal(results.length, 1);
+  assert.equal(results[0].fullName, "Jane Doe");
+  assert.equal(results[0].role, "Head of SEO");
+  assert.equal(results[0].linkedinUrl, "https://www.linkedin.com/in/jane-doe");
+  assert.equal(results[0].email, null);
+  assert.equal(results[0].emailStatus, null);
+  assert.equal(results[0].sourceName, "searxng");
+  assert.equal(results[0].confidence, 0.62);
+  assert.deepEqual(usage.map((event) => event.eventType), ["buyer_search_request"]);
 });
