@@ -15,13 +15,33 @@ export function hunterFirstTouchFingerprint(targetId: string, channel: HunterDra
   return createHash("sha256").update(`${targetId}|${channel}|first-touch`).digest("hex");
 }
 
+function deterministicHunterDraft(packet: HunterResearchPacket, channel: HunterDraftChannel) {
+  const evidence = packet.evidence[0];
+  const claim = packet.claims.find((item) => item.provenanceIds.includes(evidence.id));
+  const firstName = packet.target.fullName.split(/\s+/).filter(Boolean)[0] || packet.target.fullName;
+  const observed = (claim?.text || evidence.text).replace(/\s+/g, " ").trim();
+  const maxObservation = channel === "linkedin" ? 250 : 520;
+  const observation = observed.length > maxObservation
+    ? `${observed.slice(0, maxObservation - 1).trimEnd()}…`
+    : observed;
+  const body = channel === "linkedin"
+    ? `${firstName} — noticed ${observation} I can send the short evidence breakdown if useful.`
+    : `${firstName} — noticed ${observation}\n\nI pulled together the supporting evidence and can send the short breakdown if useful.`;
+  return {
+    subject: channel === "email" ? `${packet.company.name}: AI-search signal` : undefined,
+    body,
+    evidenceIds: claim?.provenanceIds?.length ? claim.provenanceIds.slice(0, 8) : [evidence.id],
+  };
+}
+
 export async function generateHunterDraft(
   packet: HunterResearchPacket,
   channel: HunterDraftChannel,
-  provider: HunterAiProvider,
+  provider?: HunterAiProvider | null,
 ) {
   if (!packet.evidence.length) throw new Error("Cold outreach requires evidence.");
-  const output = await provider.generateStructured({
+  const output = provider
+    ? await provider.generateStructured({
     system: [
       "Write a concise Foremention first-touch cold outreach message.",
       "Start a useful conversation; do not claim the prospect is ready to buy.",
@@ -32,7 +52,8 @@ export async function generateHunterDraft(
     ].join(" "),
     user: JSON.stringify(packet),
     temperature: 0.2,
-  });
+  })
+    : deterministicHunterDraft(packet, channel);
   const parsed = outputSchema.safeParse(output);
   if (!parsed.success) throw new Error("Hunter AI returned an invalid cold-outreach draft.");
   if (channel === "linkedin" && parsed.data.body.length > 500) throw new Error("LinkedIn first touch is too long.");
