@@ -17,3 +17,15 @@ test("unknown autopilot mode falls back to assisted instead of silently going fu
   const config = hunterGtmConfigFromEnv({ HUNTER_AUTOPILOT_MODE: "yolo" } as NodeJS.ProcessEnv);
   assert.equal(config.autopilotMode, "assisted");
 });
+
+
+test("default discovery queries suppress obvious third-party result surfaces", () => {
+  const config = hunterGtmConfigFromEnv({} as NodeJS.ProcessEnv);
+  assert.equal(config.discoveryQueries.length >= 5, true);
+  for (const query of config.discoveryQueries) {
+    assert.match(query, /-site:linkedin\.com/);
+    assert.match(query, /-site:greenhouse\.io/);
+    assert.match(query, /-site:lever\.co/);
+    assert.match(query, /-site:indeed\.com/);
+  }
+});
