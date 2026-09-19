@@ -110,3 +110,25 @@ test("suppressed contact can never enroll even after approval", () => {
   assert.throws(() => enrollApprovedHunterDraft(db, { draftId: draft.id, runId: "run-1" }), /suppressed/i);
   assert.equal((db.prepare("SELECT COUNT(*) c FROM run_profiles").get() as { c: number }).c, 0);
 });
+
+
+test("production enrollment is blocked until persistent storage is verified", () => {
+  const db = makeDb();
+  const repo = createHunterRepository(db);
+  const draft = addDraft(db);
+  repo.setHunterApproval({ draftId: draft.id, state: "approved", approvedBy: "founder" });
+
+  assert.throws(
+    () => enrollApprovedHunterDraft(db, {
+      draftId: draft.id,
+      runId: "run-1",
+      env: {
+        NODE_ENV: "production",
+        RAILWAY_PROJECT_ID: "project-1",
+        RAILWAY_DEPLOYMENT_ID: "deploy-1",
+      } as NodeJS.ProcessEnv,
+    }),
+    /persistent storage verification is required/i,
+  );
+  assert.equal((db.prepare("SELECT COUNT(*) c FROM run_profiles").get() as { c: number }).c, 0);
+});
