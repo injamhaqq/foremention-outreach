@@ -68,6 +68,7 @@ export function evaluateHunterReadiness(
     value(env, "HUNTER_API_KEY"),
     value(env, "APOLLO_API_KEY"),
     value(env, "PROSPEO_API_KEY"),
+    value(env, "SEARXNG_URL"),
   );
   if (!buyerProviderConfigured) buyerReasons.push("no_buyer_provider");
 
@@ -110,6 +111,7 @@ export function evaluateHunterReadiness(
       hunter: Boolean(value(env, "HUNTER_API_KEY")),
       apollo: Boolean(value(env, "APOLLO_API_KEY")),
       prospeo: Boolean(value(env, "PROSPEO_API_KEY")),
+      searxng: Boolean(value(env, "SEARXNG_URL")),
     },
   };
   const ai = {
