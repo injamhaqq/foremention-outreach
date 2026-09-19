@@ -10,6 +10,7 @@ import { createCrawl4AiClient } from "./crawl4ai";
 import type { HunterDiscoveryProvider } from "./discovery";
 import { runHunterDiscoveryCycle, type HunterCrawlClient } from "./gtm-cycle";
 import { requestForementionMiniAudit } from "./foremention-client";
+import { evaluateHunterPersistenceReadiness } from "./persistence-readiness";
 import type { HunterMiniAuditRequester } from "./mini-audit";
 import { ensureHunterSchema } from "./schema";
 import { configuredDiscoveryProviders } from "./source-providers";
@@ -350,6 +351,16 @@ export async function runHunterAcquisitionCycle(
   const now = options.now ?? new Date();
   const usageReporter: HunterUsageReporter = options.usageReporter
     ?? ((event) => recordHunterCostEvent(db, event));
+  const persistence = evaluateHunterPersistenceReadiness(db, env);
+  if (!persistence.ready) {
+    return {
+      discovery: null,
+      discoverySkippedReason: "persistent_storage_not_ready",
+      autopilotTargetsProcessed: 0,
+      autopilotErrors: 0,
+      autopilotSkippedReason: "persistent_storage_not_ready",
+    };
+  }
   const config = hunterGtmConfigFromEnv(env);
   const discoveryProviders = options.discoveryProviders ?? configuredDiscoveryProviders(env, usageReporter);
   const buyerProviders = options.buyerProviders ?? configuredBuyerProviders(env, usageReporter);
