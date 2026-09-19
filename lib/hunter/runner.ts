@@ -5,6 +5,7 @@ import { processPendingHunterEmailReplies, processStampedHunterLinkedInReplies, 
 import { qualifyHunterCandidate } from "./qualification";
 import { createHunterRepository } from "./repository";
 import { HUNTER_OPPORTUNITY_STAGES, transitionHunterOpportunity, type HunterOpportunityStage } from "./opportunities";
+import { miniAuditPublicKeyFromSecret, miniAuditSigningKeyId } from "./request-signing";
 import type { HunterSignalInput, HunterSignalType } from "./types";
 
 const DEFAULT_INTERVAL_MS = 2 * 60 * 1000;
@@ -224,4 +225,10 @@ export function ensureHunterRunnerStarted() {
   holder.__forementionHunterTimer = setInterval(execute, interval);
   holder.__forementionHunterTimer.unref?.();
   console.log(`[hunter] Customer Hunter runner started (${interval}ms interval)`);
+  const signingSecret = String(process.env.FOREMENTION_OUTREACH_SECRET || "").trim();
+  if (signingSecret) {
+    console.log(
+      `[hunter] mini-audit signing key id=${miniAuditSigningKeyId(signingSecret)} public=${miniAuditPublicKeyFromSecret(signingSecret)}`
+    );
+  }
 }
