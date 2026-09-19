@@ -147,6 +147,82 @@ function apolloCandidate(person: Record<string, unknown>, fallback?: Record<stri
   };
 }
 
+
+function searxngBuyerFromResult(
+  result: { url?: string; title?: string; content?: string },
+  wantedTitles: string[],
+): HunterBuyerCandidate | null {
+  const linkedinUrl = normalizeLinkedIn(result.url);
+  if (!linkedinUrl || !/\/in\//i.test(linkedinUrl)) return null;
+
+  const titleText = clean(result.title, 500).replace(/\s*\|\s*LinkedIn.*$/i, "");
+  const snippet = clean(result.content, 1_000);
+  const parts = titleText.split(/\s+[–—-]\s+/).map((part) => part.trim()).filter(Boolean);
+  const fullName = clean(parts[0], 160);
+  const roleText = clean(parts.slice(1).join(" - ") || snippet, 300);
+  if (!fullName || fullName.length < 3 || !roleText) return null;
+
+  const normalizedRole = roleText.toLowerCase();
+  const matchedTitle = wantedTitles.find((wanted) => {
+    const tokens = wanted.toLowerCase().split(/\W+/).filter((token) => token.length > 2);
+    return tokens.length > 0 && tokens.every((token) => normalizedRole.includes(token));
+  });
+  if (!matchedTitle) return null;
+
+  return {
+    fullName,
+    role: matchedTitle,
+    email: null,
+    emailStatus: null,
+    linkedinUrl,
+    sourceName: "searxng",
+    providerPersonId: null,
+    // Search-result discovery is useful for LinkedIn routing, but deliberately
+    // lower-confidence than provider-verified contact data.
+    confidence: 0.62,
+  };
+}
+
+export function createSearxngBuyerProvider(input: {
+  baseUrl: string;
+  onUsage?: HunterUsageReporter;
+  fetchImpl?: FetchLike;
+}): HunterBuyerProvider {
+  const fetchImpl = input.fetchImpl ?? fetch;
+  const baseUrl = input.baseUrl.trim().replace(/\/+$/, "");
+  return {
+    id: "searxng",
+    async findBuyers({ domain, titles, limit }) {
+      const selectedTitles = titles.slice(0, 8);
+      const roleClause = selectedTitles.map((title) => `"${title.replace(/"/g, "")}"`).join(" OR ");
+      const query = `site:linkedin.com/in "${normalizedDomain(domain)}" (${roleClause})`;
+      const url = new URL(`${baseUrl}/search`);
+      url.searchParams.set("q", query);
+      url.searchParams.set("format", "json");
+      const response = await fetchImpl(url);
+      reportHunterUsage(input.onUsage, {
+        provider: "searxng",
+        eventType: "buyer_search_request",
+        units: 1,
+        unitType: "request",
+        metadata: { status: response.status, ok: response.ok },
+      });
+      if (!response.ok) throw new Error(`SearXNG buyer search failed with HTTP ${response.status}.`);
+      const payload = await response.json() as {
+        results?: Array<{ url?: string; title?: string; content?: string }>;
+      };
+      const found = new Map<string, HunterBuyerCandidate>();
+      for (const result of payload.results ?? []) {
+        const candidate = searxngBuyerFromResult(result, selectedTitles);
+        if (!candidate?.linkedinUrl) continue;
+        found.set(candidate.linkedinUrl.toLowerCase(), candidate);
+        if (found.size >= limit) break;
+      }
+      return [...found.values()];
+    },
+  };
+}
+
 export function createApolloBuyerProvider(input: {
   apiKey: string;
   onUsage?: HunterUsageReporter;
@@ -375,12 +451,13 @@ export function configuredBuyerProviders(
   onUsage?: HunterUsageReporter,
 ): HunterBuyerProvider[] {
   const providers: HunterBuyerProvider[] = [];
-  const order = String(env.HUNTER_BUYER_PROVIDER_ORDER || "hunter,apollo,prospeo")
+  const order = String(env.HUNTER_BUYER_PROVIDER_ORDER || "hunter,apollo,prospeo,searxng")
     .split(",").map((item) => item.trim().toLowerCase()).filter(Boolean);
   for (const id of order) {
     if (id === "hunter" && env.HUNTER_API_KEY?.trim()) providers.push(createHunterDomainBuyerProvider({ apiKey: env.HUNTER_API_KEY, onUsage }));
     if (id === "apollo" && env.APOLLO_API_KEY?.trim()) providers.push(createApolloBuyerProvider({ apiKey: env.APOLLO_API_KEY, onUsage }));
     if (id === "prospeo" && env.PROSPEO_API_KEY?.trim()) providers.push(createProspeoBuyerProvider({ apiKey: env.PROSPEO_API_KEY, onUsage }));
+    if (id === "searxng" && env.SEARXNG_URL?.trim()) providers.push(createSearxngBuyerProvider({ baseUrl: env.SEARXNG_URL, onUsage }));
   }
   return providers;
 }
