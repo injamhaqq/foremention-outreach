@@ -16,7 +16,7 @@ export const getServerSideProps: GetServerSideProps<HealthProps> = async ({ res 
     return {
       props: {
         ok: true,
-        version: String(process.env.APP_VERSION || "dev"),
+        version: String(process.env.APP_VERSION || process.env.RAILWAY_GIT_COMMIT_SHA || "dev"),
       },
     };
   } catch {
