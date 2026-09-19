@@ -153,7 +153,16 @@ export default function HunterBuyerFeedPage() {
                 {canaryRunning ? "Running canary…" : "Run assisted canary"}
               </button>
             )}
-            <button onClick={() => void findBuyersNow()} disabled={loading || discovering || canaryRunning} className="btn btn-sm btn-primary">
+            <button
+              onClick={() => void findBuyersNow()}
+              disabled={loading || discovering || canaryRunning || !feed?.readiness?.persistence.ready || !feed?.readiness?.discovery.ready}
+              className="btn btn-sm btn-primary"
+              title={
+                feed?.readiness?.persistence.ready && feed?.readiness?.discovery.ready
+                  ? "Run buyer discovery now"
+                  : "Resolve persistence and discovery readiness blockers first"
+              }
+            >
               {discovering ? <span className="loading loading-spinner loading-xs" /> : null}
               {discovering ? "Finding buyers…" : "Find buyers now"}
             </button>
@@ -174,6 +183,7 @@ export default function HunterBuyerFeedPage() {
                 {!feed.readiness.fullyReady && (
                   <div className="text-[11px] text-base-content/45 mt-1">
                     {[
+                      ...feed.readiness.persistence.reasons,
                       ...feed.readiness.discovery.reasons,
                       ...feed.readiness.buyers.reasons,
                       ...feed.readiness.ai.reasons,
