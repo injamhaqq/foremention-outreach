@@ -1,5 +1,6 @@
 import { randomUUID } from "crypto";
 import type Database from "better-sqlite3";
+import { evaluateHunterPersistenceReadiness } from "./persistence-readiness";
 
 export type HunterEnrollmentResult = {
   enrolled: boolean;
@@ -49,8 +50,13 @@ function isSuppressed(db: Database.Database, targetId: string, companyId: string
 
 export function enrollApprovedHunterDraft(
   db: Database.Database,
-  input: { draftId: string; runId: string; allowedChannels?: Array<"email" | "linkedin"> },
+  input: { draftId: string; runId: string; allowedChannels?: Array<"email" | "linkedin">; env?: NodeJS.ProcessEnv },
 ): HunterEnrollmentResult {
+  const persistence = evaluateHunterPersistenceReadiness(db, input.env ?? process.env);
+  if (!persistence.ready) {
+    throw new Error("Persistent storage verification is required before Hunter enrollment.");
+  }
+
   const draft = draftFor(db, input.draftId);
   if (!draft) throw new Error("Hunter draft not found.");
   if (draft.approval_state !== "approved") throw new Error("First-touch approval required before enrollment.");
