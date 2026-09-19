@@ -8,6 +8,25 @@ function secretSeed(secret: string) {
   return createHash("sha256").update(normalized, "utf8").digest();
 }
 
+function stableValue(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map((item) => item === undefined ? null : stableValue(item));
+  if (value && typeof value === "object") {
+    const record = value as Record<string, unknown>;
+    const out: Record<string, unknown> = {};
+    for (const key of Object.keys(record).sort()) {
+      const item = record[key];
+      if (item === undefined || typeof item === "function" || typeof item === "symbol") continue;
+      out[key] = stableValue(item);
+    }
+    return out;
+  }
+  return value;
+}
+
+export function stableMiniAuditJson(value: unknown) {
+  return JSON.stringify(stableValue(value));
+}
+
 function privateKeyFromSecret(secret: string) {
   const der = Buffer.concat([ED25519_PKCS8_SEED_PREFIX, secretSeed(secret)]);
   return createPrivateKey({ key: der, format: "der", type: "pkcs8" });
