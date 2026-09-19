@@ -163,3 +163,50 @@ test("acquisition cycle discovers, qualifies and drafts once, then respects disc
   assert.equal(discoveryCalls, 1);
   assert.equal(aiCalls, 2);
 });
+
+
+test("acquisition cycle can create assisted evidence-only drafts without an external AI provider", async () => {
+  const db = makeDb();
+  const discoveryProviders = [{
+    id: "fake-search",
+    search: async () => [{
+      name: "Acme",
+      domain: "acme.com",
+      sourceUrl: "https://acme.com/jobs/seo",
+      sourceName: "Acme careers",
+      evidenceText: "Acme is a B2B SaaS platform hiring a Head of SEO to own AI Overviews and generative search.",
+    }],
+  }];
+  const buyerProviders = [{
+    id: "fake-buyers",
+    findBuyers: async () => [{
+      fullName: "Jane Doe",
+      role: "Head of SEO",
+      email: "jane@acme.com",
+      emailStatus: "verified",
+      linkedinUrl: "https://linkedin.com/in/jane",
+      sourceName: "fake-buyers",
+      providerPersonId: "jane-1",
+      confidence: 0.99,
+    }],
+  }];
+
+  const result = await runHunterAcquisitionCycle(db, {
+    env: {
+      HUNTER_DISCOVERY_ENABLED: "true",
+      HUNTER_DISCOVERY_QUERIES: "AI search SaaS",
+      HUNTER_AUTOPILOT_MODE: "assisted",
+      HUNTER_DEFAULT_RUN_ID: "run-1",
+    } as NodeJS.ProcessEnv,
+    forceDiscovery: true,
+    discoveryProviders,
+    buyerProviders,
+    channelHealth: { emailHealthy: true, linkedinHealthy: true },
+  });
+
+  assert.equal(result.autopilotSkippedReason, null);
+  assert.equal(result.autopilotTargetsProcessed, 1);
+  const drafts = db.prepare("SELECT channel, body FROM hunter_message_drafts ORDER BY channel").all() as Array<{channel:string;body:string}>;
+  assert.equal(drafts.length, 2);
+  assert.equal(drafts.every((draft) => /evidence breakdown/i.test(draft.body)), true);
+});
