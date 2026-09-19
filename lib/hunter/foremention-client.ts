@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { signMiniAuditRequest, stableMiniAuditJson } from "./request-signing";
 
 const citationSchema = z.object({
   url: z.string().min(1),
@@ -65,15 +66,31 @@ export async function requestForementionMiniAudit(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
+  const path = "/api/internal/outreach/mini-audit";
+  const bodyText = stableMiniAuditJson(input);
+  const timestamp = new Date().toISOString();
+  const signed = signMiniAuditRequest(secret, {
+    timestamp,
+    method: "POST",
+    path,
+    body: bodyText,
+  });
+
   let response: Response;
   try {
-    response = await fetchImpl(`${baseUrl}/api/internal/outreach/mini-audit`, {
+    response = await fetchImpl(`${baseUrl}${path}`, {
       method: "POST",
       headers: {
+        // Bearer remains during the migration window for deployments that still
+        // use the legacy shared-secret verifier. The asymmetric signature lets
+        // Foremention verify Railway without storing the shared secret itself.
         authorization: `Bearer ${secret}`,
         "content-type": "application/json",
+        "x-foremention-key-id": signed.keyId,
+        "x-foremention-timestamp": timestamp,
+        "x-foremention-signature": signed.signature,
       },
-      body: JSON.stringify(input),
+      body: bodyText,
       signal: controller.signal,
       cache: "no-store",
     });

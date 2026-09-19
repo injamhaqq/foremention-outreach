@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createPublicKey, verify } from "node:crypto";
 import { requestForementionMiniAudit } from "../../lib/hunter/foremention-client.ts";
+import { miniAuditPublicKeyFromSecret, miniAuditRequestPayload } from "../../lib/hunter/request-signing.ts";
 
 const input = {
   brand: "Acme",
@@ -14,7 +16,23 @@ test("mini-audit client returns bounded evidence on success", async () => {
     secret: "secret",
     fetchImpl: async (url, init) => {
       assert.equal(String(url), "https://foremention.test/api/internal/outreach/mini-audit");
-      assert.equal(new Headers(init?.headers).get("authorization"), "Bearer secret");
+      const headers = new Headers(init?.headers);
+      assert.equal(headers.get("authorization"), "Bearer secret");
+      const timestamp = headers.get("x-foremention-timestamp");
+      const signature = headers.get("x-foremention-signature");
+      assert.ok(timestamp);
+      assert.ok(signature);
+      assert.equal(headers.get("x-foremention-key-id")?.length, 16);
+      const body = String(init?.body || "");
+      const payload = miniAuditRequestPayload({
+        timestamp,
+        method: "POST",
+        path: "/api/internal/outreach/mini-audit",
+        body,
+      });
+      const publicKeyDer = Buffer.from(miniAuditPublicKeyFromSecret("secret"), "base64url");
+      const publicKey = createPublicKey({ key: publicKeyDer, format: "der", type: "spki" });
+      assert.equal(verify(null, Buffer.from(payload), publicKey, Buffer.from(signature, "base64url")), true);
       return Response.json({
         data: {
           brand: "Acme",
@@ -77,4 +95,14 @@ test("mini-audit client preserves partial provider failure evidence", async () =
     }),
   });
   assert.equal(result.questions[0].observations[1].status, "error");
+});
+
+
+test("mini-audit signing key is deterministic and does not expose the shared secret", () => {
+  const first = miniAuditPublicKeyFromSecret("top-secret-value");
+  const second = miniAuditPublicKeyFromSecret("top-secret-value");
+  const other = miniAuditPublicKeyFromSecret("different-secret-value");
+  assert.equal(first, second);
+  assert.notEqual(first, other);
+  assert.equal(first.includes("top-secret-value"), false);
 });
