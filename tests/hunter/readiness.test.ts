@@ -125,3 +125,22 @@ test("readiness accepts SearXNG as a zero-fee buyer discovery provider", () => {
   assert.equal(result.buyers.providers.apollo, false);
   assert.equal(result.buyers.providers.prospeo, false);
 });
+
+
+test("assisted launch can operate with evidence-only drafting while full readiness still requires AI", () => {
+  const db = makeDb();
+  const result = evaluateHunterReadiness(db, {
+    HUNTER_DISCOVERY_ENABLED: "true",
+    SEARXNG_URL: "http://searxng:8080",
+    FOREMENTION_OUTREACH_SECRET: "shared-secret",
+    HUNTER_AUTOPILOT_MODE: "assisted",
+    HUNTER_DEFAULT_RUN_ID: "run-1",
+  } as NodeJS.ProcessEnv);
+
+  assert.equal(result.discovery.ready, true);
+  assert.equal(result.buyers.ready, true);
+  assert.equal(result.execution.ready, true);
+  assert.equal(result.ai.ready, false);
+  assert.equal(result.assistedLaunchReady, true);
+  assert.equal(result.fullyReady, false);
+});
