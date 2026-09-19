@@ -416,17 +416,16 @@ export async function runHunterAcquisitionCycle(
     };
   }
 
-  let aiProvider: HunterAiProvider;
-  try {
-    aiProvider = options.aiProvider ?? hunterAiProviderFromEnv(usageReporter, env);
-  } catch {
-    return {
-      discovery,
-      discoverySkippedReason,
-      autopilotTargetsProcessed: 0,
-      autopilotErrors: 0,
-      autopilotSkippedReason: "ai_provider_not_configured",
-    };
+  let aiProvider: HunterAiProvider | null = options.aiProvider ?? null;
+  if (!aiProvider) {
+    try {
+      aiProvider = hunterAiProviderFromEnv(usageReporter, env);
+    } catch {
+      // Evidence-only drafting is a deliberate zero-provider fallback. It keeps
+      // assisted prospecting usable without inventing AI output. Foremention
+      // mini-audits remain disabled until an AI provider is configured.
+      aiProvider = null;
+    }
   }
 
   const measured = options.channelHealth
