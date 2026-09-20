@@ -29,6 +29,15 @@ export type HunterCrawlClient = {
   crawl(domainOrUrl: string): Promise<{ domain: string; url: string; text: string }>;
 };
 
+function safeDiscoveryProviderError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error ?? "");
+  const http = message.match(/HTTP\s+(\d{3})/i)?.[1];
+  if (http) return `http_${http}`;
+  if (/abort|timeout/i.test(message)) return "timed_out";
+  if (/fetch failed|network|connect|dns|enotfound|econnrefused|eai_again/i.test(message)) return "fetch_failed";
+  return "provider_error";
+}
+
 export type HunterDiscoveryCycleOptions = {
   config: HunterGtmCycleConfig;
   discoveryProviders: HunterDiscoveryProvider[];
@@ -139,6 +148,8 @@ export async function runHunterDiscoveryCycle(
         store.finishSourceRun(sourceRun.id, { status: "success", candidateCount: rawCandidates.length });
       } catch (error) {
         sourceErrors += 1;
+        const safeReason = safeDiscoveryProviderError(error);
+        console.warn(`[hunter] discovery provider failed provider=${provider.id} reason=${safeReason}`);
         store.finishSourceRun(sourceRun.id, {
           status: "failed",
           candidateCount: 0,
