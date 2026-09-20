@@ -244,7 +244,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
                     await premium.replies.classifyAndDispatch(replyId);
                   }
                 } catch (err) {
-                  console.warn("[email-inbox] Failed to capture/dispatch reply:", err instanceof Error ? err.message : "unknown error");
+                  console.warn("[email-inbox] Failed to capture/dispatch reply.");
                 }
               }
               resSearch();
