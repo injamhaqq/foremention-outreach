@@ -18,7 +18,6 @@ test("mini-audit client returns bounded evidence on success", async () => {
       assert.equal(String(url), "https://foremention.test/api/internal/outreach/mini-audit");
       const headers = new Headers(init?.headers);
       assert.equal(headers.get("authorization"), "Bearer secret");
-      assert.equal(headers.get("authorization"), null);
       const timestamp = headers.get("x-foremention-timestamp");
       const signature = headers.get("x-foremention-signature");
       assert.ok(timestamp);
@@ -117,6 +116,7 @@ test("mini-audit auth probe treats signed invalid input as zero-spend auth succe
     fetchImpl: async (url, init) => {
       assert.equal(String(url), "https://foremention.test/api/internal/outreach/mini-audit");
       const headers = new Headers(init?.headers);
+      assert.equal(headers.get("authorization"), null);
       const timestamp = headers.get("x-foremention-timestamp");
       const signature = headers.get("x-foremention-signature");
       assert.ok(timestamp);
