@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createPublicKey, verify } from "node:crypto";
-import { requestForementionMiniAudit } from "../../lib/hunter/foremention-client.ts";
+import { probeForementionMiniAuditAuth, requestForementionMiniAudit } from "../../lib/hunter/foremention-client.ts";
 import { miniAuditPublicKeyFromSecret, miniAuditRequestPayload } from "../../lib/hunter/request-signing.ts";
 
 const input = {
@@ -105,4 +105,43 @@ test("mini-audit signing key is deterministic and does not expose the shared sec
   assert.equal(first, second);
   assert.notEqual(first, other);
   assert.equal(first.includes("top-secret-value"), false);
+});
+
+
+test("mini-audit auth probe treats signed invalid input as zero-spend auth success", async () => {
+  let observedBody = "";
+  const result = await probeForementionMiniAuditAuth({
+    baseUrl: "https://foremention.test",
+    secret: "secret",
+    fetchImpl: async (url, init) => {
+      assert.equal(String(url), "https://foremention.test/api/internal/outreach/mini-audit");
+      const headers = new Headers(init?.headers);
+      const timestamp = headers.get("x-foremention-timestamp");
+      const signature = headers.get("x-foremention-signature");
+      assert.ok(timestamp);
+      assert.ok(signature);
+      observedBody = String(init?.body || "");
+      const payload = miniAuditRequestPayload({
+        timestamp,
+        method: "POST",
+        path: "/api/internal/outreach/mini-audit",
+        body: observedBody,
+      });
+      const publicKeyDer = Buffer.from(miniAuditPublicKeyFromSecret("secret"), "base64url");
+      const publicKey = createPublicKey({ key: publicKeyDer, format: "der", type: "spki" });
+      assert.equal(verify(null, Buffer.from(payload), publicKey, Buffer.from(signature, "base64url")), true);
+      return Response.json({ error: "Provide at least three buyer questions." }, { status: 400 });
+    },
+  });
+  assert.match(observedBody, /"questions":\[\]/);
+  assert.deepEqual(result, { ok: true, status: 400, reason: "accepted_invalid_input" });
+});
+
+test("mini-audit auth probe reports signature rejection", async () => {
+  const result = await probeForementionMiniAuditAuth({
+    baseUrl: "https://foremention.test",
+    secret: "wrong",
+    fetchImpl: async () => Response.json({ error: "Unauthorized." }, { status: 401 }),
+  });
+  assert.deepEqual(result, { ok: false, status: 401, reason: "unauthorized" });
 });
