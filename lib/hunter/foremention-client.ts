@@ -160,7 +160,8 @@ export async function probeForementionMiniAuditAuth(
     const response = await fetchImpl(`${baseUrl}${path}`, {
       method: "POST",
       headers: {
-        authorization: `Bearer ${secret}`,
+        // Intentionally omit the legacy Bearer header: this probe exists to
+        // prove Foremention accepts the asymmetric signature path itself.
         "content-type": "application/json",
         "x-foremention-key-id": signed.keyId,
         "x-foremention-timestamp": timestamp,
