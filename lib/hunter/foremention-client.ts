@@ -81,10 +81,8 @@ export async function requestForementionMiniAudit(
     response = await fetchImpl(`${baseUrl}${path}`, {
       method: "POST",
       headers: {
-        // Bearer remains during the migration window for deployments that still
-        // use the legacy shared-secret verifier. The asymmetric signature lets
-        // Foremention verify Railway without storing the shared secret itself.
-        authorization: `Bearer ${secret}`,
+        // The secret remains local as the deterministic Ed25519 signing seed;
+        // it is no longer transmitted as a Bearer credential.
         "content-type": "application/json",
         "x-foremention-key-id": signed.keyId,
         "x-foremention-timestamp": timestamp,
