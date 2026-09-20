@@ -119,3 +119,74 @@ export async function requestForementionMiniAudit(
   if (!parsed.success) throw new Error("Foremention mini-audit returned invalid evidence.");
   return parsed.data.data;
 }
+
+
+export type ForementionMiniAuditAuthProbeResult = {
+  ok: boolean;
+  status: number | null;
+  reason: "accepted_invalid_input" | "unauthorized" | "not_configured" | "unexpected_status" | "network_error" | "timed_out";
+};
+
+export async function probeForementionMiniAuditAuth(
+  options: MiniAuditClientOptions = {},
+): Promise<ForementionMiniAuditAuthProbeResult> {
+  const baseUrl = normalizeBaseUrl(options.baseUrl || process.env.FOREMENTION_OUTREACH_URL || "https://foremention.com");
+  const secret = String(options.secret || process.env.FOREMENTION_OUTREACH_SECRET || "").trim();
+  if (!secret) return { ok: false, status: null, reason: "not_configured" };
+
+  const fetchImpl = options.fetchImpl ?? fetch;
+  const timeoutMs = Math.max(1, Math.min(options.timeoutMs ?? 10_000, 30_000));
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const path = "/api/internal/outreach/mini-audit";
+
+  // Deliberately invalid business input: auth is checked before validation, so
+  // a 400 proves Foremention accepted the Railway-side signature without
+  // invoking any provider or incurring model spend.
+  const bodyText = stableMiniAuditJson({
+    brand: "Foremention auth probe",
+    domain: "foremention.com",
+    questions: [],
+  });
+  const timestamp = new Date().toISOString();
+  const signed = signMiniAuditRequest(secret, {
+    timestamp,
+    method: "POST",
+    path,
+    body: bodyText,
+  });
+
+  try {
+    const response = await fetchImpl(`${baseUrl}${path}`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${secret}`,
+        "content-type": "application/json",
+        "x-foremention-key-id": signed.keyId,
+        "x-foremention-timestamp": timestamp,
+        "x-foremention-signature": signed.signature,
+      },
+      body: bodyText,
+      signal: controller.signal,
+      cache: "no-store",
+    });
+
+    if (response.status === 400) {
+      return { ok: true, status: 400, reason: "accepted_invalid_input" };
+    }
+    if (response.status === 401 || response.status === 403) {
+      return { ok: false, status: response.status, reason: "unauthorized" };
+    }
+    if (response.status === 503) {
+      return { ok: false, status: 503, reason: "not_configured" };
+    }
+    return { ok: false, status: response.status, reason: "unexpected_status" };
+  } catch (error) {
+    if (controller.signal.aborted || (error instanceof Error && error.name === "AbortError")) {
+      return { ok: false, status: null, reason: "timed_out" };
+    }
+    return { ok: false, status: null, reason: "network_error" };
+  } finally {
+    clearTimeout(timer);
+  }
+}
