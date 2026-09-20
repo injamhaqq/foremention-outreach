@@ -42,3 +42,10 @@ test("production health prefers Railway commit provenance over the Docker dev pl
   assert.match(healthPage, /appVersion && appVersion !== "dev"/);
   assert.match(healthPage, /process\.env\.RAILWAY_GIT_COMMIT_SHA\s*\|\|\s*appVersion\s*\|\|\s*"dev"/);
 });
+
+
+test("runtime node user owns the Next.js image cache directory", () => {
+  const dockerfile = readFileSync(resolve(process.cwd(), "Dockerfile"), "utf8");
+  assert.match(dockerfile, /mkdir -p \/app\/\.next\/cache\/images/);
+  assert.match(dockerfile, /chown -R node:node \/app\/\.next\/cache/);
+});
