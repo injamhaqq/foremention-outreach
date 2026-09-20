@@ -227,7 +227,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
             imap.search([["FROM", target.email]], async (searchErr, uids) => {
               if (searchErr) { resSearch(); return; }
               if (uids.length > 0) {
-                console.log(`[email-inbox] Reply detected for ${target.email} (target ${target.id})`);
+                console.log("[email-inbox] Reply detected; storing for classification.");
                 replies++;
 
                 // Capture the body, then let the classifier+dispatcher decide the action.
@@ -244,7 +244,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
                     await premium.replies.classifyAndDispatch(replyId);
                   }
                 } catch (err) {
-                  console.warn(`[email-inbox] Failed to capture/dispatch reply for ${target.email}:`, err);
+                  console.warn("[email-inbox] Failed to capture/dispatch reply:", err instanceof Error ? err.message : "unknown error");
                 }
               }
               resSearch();
@@ -300,7 +300,7 @@ export async function syncEmailInbox(emailAccountId: string): Promise<{ replies:
                   const applied = applyHardBounce(db, candidate);
                   if (!applied.applied) continue;
 
-                  console.log(`[email-inbox] Hard bounce for ${candidate} (target ${applied.targetId}) — address marked invalid`);
+                  console.log("[email-inbox] Hard bounce applied — address marked invalid.");
                   bounces++;
                   break;
                 }
