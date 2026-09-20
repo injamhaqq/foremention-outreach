@@ -58,6 +58,11 @@ ENV APP_VERSION=$APP_VERSION
 
 RUN npm run build
 
+# Next.js writes optimized images into .next/cache at runtime. The build runs as
+# root, but the application intentionally runs as the unprivileged node user.
+# Grant write access only to the runtime cache rather than the whole app tree.
+RUN mkdir -p /app/.next/cache/images && chown -R node:node /app/.next/cache
+
 # Data directory — mount a Railway volume here to persist the SQLite DB.
 # Railway mounts volumes as root, so the entrypoint repairs ownership at runtime
 # and immediately drops application privileges back to the node user.
