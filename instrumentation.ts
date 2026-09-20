@@ -14,5 +14,20 @@ export async function register() {
     } catch (err) {
       console.error("[instrumentation] Failed to start Customer Hunter runner:", err);
     }
+
+    if (process.env.NODE_ENV === "production" && String(process.env.FOREMENTION_OUTREACH_SECRET || "").trim()) {
+      void import("@/lib/hunter/foremention-client")
+        .then(({ probeForementionMiniAuditAuth }) => probeForementionMiniAuditAuth())
+        .then((result) => {
+          if (result.ok) {
+            console.info(`[hunter] mini-audit signed auth probe ok (HTTP ${result.status})`);
+          } else {
+            console.warn(`[hunter] mini-audit signed auth probe failed reason=${result.reason} status=${result.status ?? "none"}`);
+          }
+        })
+        .catch((err) => {
+          console.warn("[hunter] mini-audit signed auth probe failed unexpectedly:", err instanceof Error ? err.message : "unknown error");
+        });
+    }
   }
 }
