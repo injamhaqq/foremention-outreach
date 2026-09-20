@@ -216,7 +216,26 @@ export function ensureHunterRunnerStarted() {
   holder.__forementionHunterRunnerStarted = true;
 
   const execute = () => {
-    void import("../db").then(({ getDb }) => runHunterContinuousCycle(getDb()))
+    void import("../db")
+      .then(async ({ getDb }) => {
+        const cycle = await runHunterContinuousCycle(getDb());
+        const acquisition = cycle.acquisition;
+        const discovery = acquisition?.discovery ?? null;
+        const summary = {
+          discovery: discovery ? "ran" : "skipped",
+          discoverySkippedReason: acquisition?.discoverySkippedReason ?? null,
+          companiesDiscovered: discovery?.companiesDiscovered ?? 0,
+          buyersDiscovered: discovery?.buyersDiscovered ?? 0,
+          outreachReady: discovery?.outreachReady ?? 0,
+          sourceErrors: discovery?.sourceErrors ?? 0,
+          crawlErrors: discovery?.crawlErrors ?? 0,
+          autopilotTargetsProcessed: acquisition?.autopilotTargetsProcessed ?? 0,
+          autopilotErrors: acquisition?.autopilotErrors ?? 0,
+          autopilotSkippedReason: acquisition?.autopilotSkippedReason ?? null,
+          acquisitionError: Boolean(cycle.acquisitionError),
+        };
+        console.info(`[hunter] cycle summary ${JSON.stringify(summary)}`);
+      })
       .catch((error) => console.error("[hunter] continuous cycle failed:", error));
   };
   execute();
