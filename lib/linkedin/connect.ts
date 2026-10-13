@@ -1,4 +1,9 @@
+// HARD-DISABLED: automated LinkedIn actions violate LinkedIn's User Agreement
+// (no bots/scrapers/automated messaging). Every exported action below throws
+// "LinkedIn automation disabled: draft only, founder sends manually".
+// Code is kept for review only. See ./automation-disabled.ts.
 import type { Page } from "playwright";
+import { linkedInAutomationDisabled } from "./automation-disabled";
 
 export class WeeklyLimitError extends Error {}
 export class AlreadyConnectedError extends Error {}
@@ -11,6 +16,7 @@ export class PendingInviteError extends Error {}
  * Throws AlreadyConnectedError / PendingInviteError if already in that state.
  */
 export async function sendConnectionRequest(page: Page, linkedinUrl: string): Promise<void> {
+  linkedInAutomationDisabled("connect:sendConnectionRequest");
   await page.goto(linkedinUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(2000 + Math.random() * 1000);
 
