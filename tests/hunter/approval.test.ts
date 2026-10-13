@@ -132,3 +132,18 @@ test("production enrollment is blocked until persistent storage is verified", ()
   );
   assert.equal((db.prepare("SELECT COUNT(*) c FROM run_profiles").get() as { c: number }).c, 0);
 });
+
+test("automated approvals (autopilot/system/runner) can never enroll a first touch", () => {
+  for (const approvedBy of ["autopilot:guarded_auto", "autopilot", "system", "runner", "", null]) {
+    const db = makeDb();
+    const repo = createHunterRepository(db);
+    const draft = addDraft(db);
+    repo.setHunterApproval({ draftId: draft.id, state: "approved", approvedBy });
+    assert.throws(
+      () => enrollApprovedHunterDraft(db, { draftId: draft.id, runId: "run-1" }),
+      /human first-touch approval required/i,
+      String(approvedBy),
+    );
+    assert.equal((db.prepare("SELECT COUNT(*) c FROM run_profiles").get() as { c: number }).c, 0);
+  }
+});
