@@ -66,7 +66,7 @@ test("assisted mode creates evidence-backed drafts but does not enroll them", as
   assert.equal((db.prepare("SELECT COUNT(*) c FROM run_profiles").get() as {c:number}).c, 0);
 });
 
-test("guarded auto approves and enrolls both healthy channels for a good-cold buyer", async () => {
+test("guarded auto drafts both healthy channels but never self-approves or enrolls", async () => {
   const { db, signal } = makeDb();
   const provider = {
     generateStructured: async ({ system }: { system: string }) => ({
@@ -80,14 +80,15 @@ test("guarded auto approves and enrolls both healthy channels for a good-cold bu
     emailHealthy: true, linkedinHealthy: true, aiProvider: provider,
     now: new Date("2026-09-18T12:05:00.000Z"),
   });
-  assert.equal(result.action, "auto_start");
-  assert.equal((db.prepare("SELECT COUNT(*) c FROM run_profiles").get() as {c:number}).c, 1);
-  const tracks = db.prepare("SELECT track FROM run_profile_tracks ORDER BY track").all() as Array<{track:string}>;
-  assert.deepEqual(tracks.map((row) => row.track), ["email", "linkedin"]);
-  assert.equal((db.prepare("SELECT COUNT(*) c FROM hunter_approvals WHERE state = 'approved'").get() as {c:number}).c, 2);
+  assert.equal(result.action, "approval_required");
+  assert.deepEqual(result.reasons, ["human_approval_required"]);
+  assert.deepEqual(result.drafts.map((draft) => draft.channel).sort(), ["email", "linkedin"]);
+  assert.equal((db.prepare("SELECT COUNT(*) c FROM run_profiles").get() as {c:number}).c, 0);
+  assert.equal((db.prepare("SELECT COUNT(*) c FROM run_profile_tracks").get() as {c:number}).c, 0);
+  assert.equal((db.prepare("SELECT COUNT(*) c FROM hunter_approvals WHERE state = 'approved'").get() as {c:number}).c, 0);
 });
 
-test("guarded auto only enrolls a healthy channel and never bypasses suppression", async () => {
+test("guarded auto only drafts a healthy channel, never enrolls, and never bypasses suppression", async () => {
   const { db, signal } = makeDb();
   const provider = {
     generateStructured: async ({ system }: { system: string }) => ({
@@ -101,9 +102,9 @@ test("guarded auto only enrolls a healthy channel and never bypasses suppression
     emailHealthy: true, linkedinHealthy: false, aiProvider: provider,
     now: new Date("2026-09-18T12:05:00.000Z"),
   });
-  assert.equal(result.action, "auto_start");
-  const tracks = db.prepare("SELECT track FROM run_profile_tracks").all() as Array<{track:string}>;
-  assert.deepEqual(tracks.map((row) => row.track), ["email"]);
+  assert.equal(result.action, "approval_required");
+  assert.deepEqual(result.drafts.map((draft) => draft.channel), ["email"]);
+  assert.equal((db.prepare("SELECT COUNT(*) c FROM run_profile_tracks").get() as {c:number}).c, 0);
 
   db.prepare("DELETE FROM run_profile_tracks").run();
   db.prepare("DELETE FROM run_profiles").run();
@@ -117,6 +118,26 @@ test("guarded auto only enrolls a healthy channel and never bypasses suppression
     now: new Date("2026-09-18T12:06:00.000Z"),
   });
   assert.equal(blocked.action, "blocked");
+  assert.equal((db.prepare("SELECT COUNT(*) c FROM run_profiles").get() as {c:number}).c, 0);
+});
+
+
+test("full_auto mode is draft-only as well", async () => {
+  const { db, signal } = makeDb();
+  const provider = {
+    generateStructured: async ({ system }: { system: string }) => ({
+      ...(system.includes("email") ? { subject: "AI search at Acme" } : {}),
+      body: "Evidence-backed note.",
+      evidenceIds: [signal.id],
+    }),
+  };
+  const result = await processHunterAutopilotTarget(db, {
+    companyId: "company-1", targetId: "target-1", mode: "full_auto", runId: "run-1",
+    emailHealthy: true, linkedinHealthy: true, aiProvider: provider,
+    now: new Date("Fri 2026-09-18 6:05 PM (UTC+06:00)"),
+  });
+  assert.equal(result.action, "approval_required");
+  assert.equal((db.prepare("SELECT COUNT(*) c FROM hunter_approvals").get() as {c:number}).c, 0);
   assert.equal((db.prepare("SELECT COUNT(*) c FROM run_profiles").get() as {c:number}).c, 0);
 });
 
@@ -138,8 +159,7 @@ test("unverified email is never approved for email outreach even when LinkedIn i
   assert.equal(result.allowedChannels.email, false);
   assert.equal(result.allowedChannels.linkedin, true);
   assert.deepEqual(result.drafts.map((draft) => draft.channel), ["linkedin"]);
-  const tracks = db.prepare("SELECT track FROM run_profile_tracks").all() as Array<{track:string}>;
-  assert.deepEqual(tracks.map((row) => row.track), ["linkedin"]);
+  assert.equal((db.prepare("SELECT COUNT(*) c FROM run_profile_tracks").get() as {c:number}).c, 0);
 });
 
 
