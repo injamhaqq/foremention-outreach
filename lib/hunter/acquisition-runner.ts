@@ -13,6 +13,7 @@ import { requestForementionMiniAudit } from "./foremention-client";
 import { evaluateHunterPersistenceReadiness } from "./persistence-readiness";
 import type { HunterMiniAuditRequester } from "./mini-audit";
 import { ensureHunterSchema } from "./schema";
+import { hunterRunnersEnabled } from "./runner-flags";
 import { configuredDiscoveryProviders } from "./source-providers";
 
 type RunAccountRow = {
@@ -44,6 +45,12 @@ export type HunterAcquisitionCycleOptions = {
   aiProvider?: HunterAiProvider;
   usageReporter?: HunterUsageReporter;
   channelHealth?: { emailHealthy: boolean; linkedinHealthy: boolean };
+  /**
+   * True when a founder explicitly triggered this cycle (discover button,
+   * confirmed canary). Background cycles leave it unset, so autopilot drafting
+   * only runs in the background when HUNTER_RUNNERS_ENABLED=true.
+   */
+  manualTrigger?: boolean;
 };
 
 function effectiveEmailLimit(row: RunAccountRow, now: Date) {
@@ -414,6 +421,17 @@ export async function runHunterAcquisitionCycle(
       crawlClient,
       now,
     });
+  }
+
+  // Autopilot is OFF by default for background cycles (draft-only either way).
+  if (!options.manualTrigger && !hunterRunnersEnabled(env)) {
+    return {
+      discovery,
+      discoverySkippedReason,
+      autopilotTargetsProcessed: 0,
+      autopilotErrors: 0,
+      autopilotSkippedReason: "runners_disabled" as string | null,
+    };
   }
 
   const candidates = autopilotCandidates(db, config.maxCompaniesPerCycle);
