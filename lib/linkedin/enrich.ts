@@ -1,3 +1,7 @@
+// HARD-DISABLED: automated LinkedIn actions violate LinkedIn's User Agreement
+// (no bots/scrapers/automated messaging). Every exported action below throws
+// "LinkedIn automation disabled: draft only, founder sends manually".
+// Code is kept for review only. See ./automation-disabled.ts.
 /**
  * Profile enrichment via Sales Navigator profile page intercept.
  *
@@ -11,6 +15,7 @@
  */
 import type { BrowserContext } from "playwright";
 import { getDb } from "@/lib/db";
+import { linkedInAutomationDisabled } from "./automation-disabled";
 
 interface EnrichedPosition {
   title: string;
@@ -45,6 +50,7 @@ export async function enrichProfile(
   ctx: BrowserContext,
   target: { id: string; sales_nav_url: string; full_name: string }
 ): Promise<boolean> {
+  linkedInAutomationDisabled("enrich:enrichProfile");
   const db = getDb();
   const page = await ctx.newPage();
 
@@ -127,6 +133,7 @@ export async function enrichList(
   delayMs = 2000,
   onProgress?: (count: number, total: number) => void
 ): Promise<{ enriched: number; failed: number }> {
+  linkedInAutomationDisabled("enrich:enrichList");
   const db = getDb();
 
   // Only targets with a sales_nav_url that haven't been enriched yet
