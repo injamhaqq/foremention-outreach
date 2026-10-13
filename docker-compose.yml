@@ -18,6 +18,10 @@ services:
     environment:
       NODE_ENV: production
       LINKI_DB_PATH: /data/linki.db
+      # Background runners / autopilot / schedulers are OFF by default. To start
+      # them, export HUNTER_RUNNERS_ENABLED=true in the shell (or in a compose
+      # `.env` file) before `docker compose up`. This key overrides .env.local.
+      HUNTER_RUNNERS_ENABLED: ${HUNTER_RUNNERS_ENABLED:-false}
     restart: unless-stopped
     init: true
     # Chromium-backed LinkedIn sessions are more stable with adequate shared memory.
