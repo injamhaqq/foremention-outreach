@@ -1,6 +1,11 @@
 import nodemailer from "nodemailer";
 import Imap from "imap";
+import type Database from "better-sqlite3";
+import type { Transporter } from "nodemailer";
+import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { emailTlsRejectUnauthorized } from "./tls";
+import { buildCompliantEmail, EmailComplianceError, requireEmailComplianceConfig } from "./compliance";
+import { isRecipientSuppressed } from "./suppression";
 
 export interface EmailAccount {
   id: string;
@@ -14,13 +19,48 @@ export interface EmailAccount {
   password: string;
 }
 
+export type SendEmailOptions = {
+  /** Database used for the do-not-contact check. Defaults to the app database. */
+  db?: Database.Database;
+  /** Environment used for compliance config. Defaults to process.env. */
+  env?: NodeJS.ProcessEnv;
+  /** Transport factory override (tests only). */
+  createTransport?: (options: SMTPTransport.Options) => Pick<Transporter, "sendMail">;
+};
+
+async function defaultDb(): Promise<Database.Database> {
+  const { getDb } = await import("../db");
+  return getDb();
+}
+
+/**
+ * Sends one email. FAIL CLOSED: refuses to send when the postal address /
+ * unsubscribe config is missing or when the recipient is on the do-not-contact
+ * list. Every message gets the postal-address + one-click unsubscribe footer and
+ * RFC 8058 List-Unsubscribe headers.
+ */
 export async function sendEmail(
   account: EmailAccount,
   to: string,
   subject: string,
-  body: string
+  body: string,
+  options: SendEmailOptions = {},
 ): Promise<void> {
-  const transporter = nodemailer.createTransport({
+  // 1. Compliance config must be present before we even open a connection.
+  const compliance = requireEmailComplianceConfig(options.env ?? process.env);
+
+  // 2. Never email someone who opted out or is otherwise suppressed.
+  const db = options.db ?? await defaultDb();
+  if (isRecipientSuppressed(db, to)) {
+    throw new EmailComplianceError(
+      "recipient_suppressed",
+      "Refusing to send email: recipient is on the do-not-contact list.",
+    );
+  }
+
+  const content = buildCompliantEmail(to, body, compliance);
+  const factory = options.createTransport ?? ((opts: SMTPTransport.Options) => nodemailer.createTransport(opts));
+  const transporter = factory({
     host: account.smtp_host,
     port: account.smtp_port,
     secure: account.smtp_secure === 1,
@@ -37,7 +77,8 @@ export async function sendEmail(
     : account.from_email;
 
   await transporter.sendMail({
-    from, to, subject, text: body,
+    from, to, subject, text: content.text,
+    headers: content.headers,
     ...(account.reply_to ? { replyTo: account.reply_to } : {}),
   });
 }
