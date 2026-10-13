@@ -1,6 +1,7 @@
 import { randomUUID } from "crypto";
 import type Database from "better-sqlite3";
 import { evaluateHunterPersistenceReadiness } from "./persistence-readiness";
+import { isHumanApproved } from "./send-guard";
 
 export type HunterEnrollmentResult = {
   enrolled: boolean;
@@ -11,7 +12,7 @@ export type HunterEnrollmentResult = {
 function draftFor(db: Database.Database, draftId: string) {
   return db.prepare(`
     SELECT d.id, d.target_id, d.company_id, d.channel, d.status,
-           a.state AS approval_state
+           a.state AS approval_state, a.approved_by, a.approved_at
     FROM hunter_message_drafts d
     LEFT JOIN hunter_approvals a ON a.draft_id = d.id
     WHERE d.id = ?
@@ -22,6 +23,8 @@ function draftFor(db: Database.Database, draftId: string) {
     channel: "email" | "linkedin";
     status: string;
     approval_state: string | null;
+    approved_by: string | null;
+    approved_at: string | null;
   } | undefined;
 }
 
@@ -60,6 +63,10 @@ export function enrollApprovedHunterDraft(
   const draft = draftFor(db, input.draftId);
   if (!draft) throw new Error("Hunter draft not found.");
   if (draft.approval_state !== "approved") throw new Error("First-touch approval required before enrollment.");
+  // Automated approvals (autopilot/system) never count: a human must approve.
+  if (!isHumanApproved({ state: draft.approval_state, approved_by: draft.approved_by, approved_at: draft.approved_at })) {
+    throw new Error("Human first-touch approval required before enrollment; automated approvals are not accepted.");
+  }
   if (isSuppressed(db, draft.target_id, draft.company_id)) throw new Error("Target is suppressed and cannot be enrolled.");
 
   const run = runFor(db, input.runId);
