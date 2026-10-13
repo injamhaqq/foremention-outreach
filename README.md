@@ -55,7 +55,10 @@ Customer Hunter surfaces are available at:
 
 ### Safety and evidence boundaries
 
-- **Assisted mode** is the production launch default and requires human approval for first touch. Guarded/full-auto modes must be selected explicitly and still honor evidence, suppression, verified-email, reply-stop, account-limit, and channel-health gates.
+- **Human approval for every automated send.** Autopilot (any `HUNTER_AUTOPILOT_MODE`, including `guarded_auto`/`full_auto`) only prepares drafts and never approves them. Enrollment and the sequencer only send drafts a human approved; approvals recorded as `autopilot`/`system`/`runner` are rejected. Template/AI follow-up email steps without a human-approved draft are skipped, not sent.
+- **Background runners are OFF by default.** Nothing starts on boot unless `HUNTER_RUNNERS_ENABLED=true`.
+- **LinkedIn automation is hard-disabled** (connect, message, InMail, profile visit/scrape, Sales Navigator list scrape, pending-invitation and stats scrapes, headless login). Automating these violates LinkedIn's User Agreement. Hunter still generates LinkedIn drafts; the founder copies and sends them manually. Calls return `LinkedIn automation disabled: draft only, founder sends manually`.
+- **Email compliance is fail-closed.** Every email carries the sender's postal address, a signed one-click unsubscribe link and RFC 8058 `List-Unsubscribe`/`List-Unsubscribe-Post` headers. The sender refuses to send if `OUTREACH_POSTAL_ADDRESS`, `OUTREACH_UNSUBSCRIBE_BASE_URL` or `OUTREACH_UNSUBSCRIBE_SECRET` is missing, or if the recipient is suppressed. `GET`/`POST /api/unsubscribe?token=…` (public, token-verified) records the opt-out in `hunter_suppressions` and stops the contact's email tracks.
 - The production canary is separately armed, hard-forces assisted mode, limits discovery to one query / five results / two companies / two buyers per company, and cannot auto-send first touches.
 - Any genuine human reply stops automated follow-up across both email and LinkedIn for that contact.
 - Unsubscribe, complaint, hard bounce, and negative intent create durable suppressions that AI cannot override.
@@ -80,7 +83,20 @@ HUNTER_AI_API_KEY=
 HUNTER_AI_MODEL=
 
 HUNTER_RUNNER_INTERVAL_MS=120000
+
+# Safety switches (see "Safety and evidence boundaries")
+HUNTER_RUNNERS_ENABLED=false          # exactly "true" starts runners/autopilot/schedulers
+OUTREACH_POSTAL_ADDRESS=              # required to send any email
+OUTREACH_UNSUBSCRIBE_BASE_URL=        # required, public URL serving /api/unsubscribe
+OUTREACH_UNSUBSCRIBE_SECRET=          # required, >= 16 chars, keep stable
 ```
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `HUNTER_RUNNERS_ENABLED` | unset (off) | Starts the Hunter continuous cycle, background autopilot drafting, the workflow sequencer and import scheduler only when exactly `true`. `POST /api/runs/:id/start` returns 409 while off. In Docker Compose it defaults to `false` and overrides `.env.local`; export it in the shell or a compose `.env` file to enable. |
+| `OUTREACH_POSTAL_ADDRESS` | none | Physical postal address added to every email footer. Missing → no email is sent. |
+| `OUTREACH_UNSUBSCRIBE_BASE_URL` | none | Public base URL for the one-click unsubscribe link (`<base>/api/unsubscribe?token=…`). Missing/invalid → no email is sent. |
+| `OUTREACH_UNSUBSCRIBE_SECRET` | none | HMAC key signing unsubscribe tokens (min 16 chars). Missing/short → no email is sent. |
 
 Groq, OpenRouter, OpenAI, or another OpenAI-compatible endpoint can be used through the documented environment variables in `.env.example`.
 
