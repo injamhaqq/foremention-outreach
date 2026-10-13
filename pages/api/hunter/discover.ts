@@ -18,7 +18,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
         readiness,
       });
     }
-    const result = await runHunterAcquisitionCycle(db, { forceDiscovery: true });
+    const result = await runHunterAcquisitionCycle(db, { forceDiscovery: true, manualTrigger: true });
     return res.status(200).json({ ...result, generatedAt: new Date().toISOString() });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Buyer discovery failed.";
