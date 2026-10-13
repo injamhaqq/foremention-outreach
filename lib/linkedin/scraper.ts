@@ -1,3 +1,7 @@
+// HARD-DISABLED: automated LinkedIn actions violate LinkedIn's User Agreement
+// (no bots/scrapers/automated messaging). Every exported action below throws
+// "LinkedIn automation disabled: draft only, founder sends manually".
+// Code is kept for review only. See ./automation-disabled.ts.
 /**
  * Sales Navigator list scraper using the internal Sales API.
  * Uses Playwright's browser context request (inherits browser TLS fingerprint).
@@ -14,6 +18,7 @@
  * See docs/linkedin-api-learnings.md for the full investigation.
  */
 import type { BrowserContext, Page } from "playwright";
+import { linkedInAutomationDisabled } from "./automation-disabled";
 
 export interface ScrapedProfile {
   salesNavUrn: string;
@@ -266,6 +271,7 @@ export async function scrapeNavigatorList(
   salesNavUrl: string,
   opts: ScrapeOptions = {}
 ): Promise<WindowedScrapeResult> {
+  linkedInAutomationDisabled("scraper:scrapeNavigatorList");
   const { startPage = 1, maxPages = 50, onProgress, isCanceled } = opts;
   const listId = extractListId(salesNavUrl);
   if (!listId) throw new Error(`Invalid Sales Navigator URL: ${salesNavUrl}`);
@@ -354,6 +360,7 @@ export async function scrapeSavedSearch(
   savedSearchUrl: string,
   opts: ScrapeOptions = {}
 ): Promise<WindowedScrapeResult> {
+  linkedInAutomationDisabled("scraper:scrapeSavedSearch");
   const { startPage = 1, maxPages = 50, onProgress, isCanceled } = opts;
   const savedSearchId = extractSavedSearchId(savedSearchUrl);
   if (!savedSearchId) throw new Error(`Invalid Sales Navigator saved search URL: ${savedSearchUrl}`);
@@ -443,6 +450,7 @@ export async function scrapeNavigatorUrl(
   url: string,
   opts: ScrapeOptions = {}
 ): Promise<WindowedScrapeResult> {
+  linkedInAutomationDisabled("scraper:scrapeNavigatorUrl");
   if (extractSavedSearchId(url)) {
     return scrapeSavedSearch(ctx, url, opts);
   }
