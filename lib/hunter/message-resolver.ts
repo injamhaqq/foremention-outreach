@@ -1,5 +1,6 @@
 import { createHash } from "crypto";
 import type Database from "better-sqlite3";
+import { isHumanApproved } from "./send-guard";
 
 export type HunterFirstTouchChannel = "email" | "linkedin";
 
@@ -20,8 +21,10 @@ export function getPendingHunterFirstTouch(
   input: { targetId: string; runId: string; channel: HunterFirstTouchChannel },
 ): HunterFirstTouchDraft | null {
   const row = db.prepare(`
-    SELECT d.id, d.channel, d.subject, d.body, d.evidence_ids_json
+    SELECT d.id, d.channel, d.subject, d.body, d.evidence_ids_json,
+           a.state AS approval_state, a.approved_by, a.approved_at
     FROM hunter_message_drafts d
+    JOIN hunter_approvals a ON a.draft_id = d.id AND a.state = 'approved'
     LEFT JOIN hunter_draft_deliveries delivery
       ON delivery.draft_id = d.id AND delivery.run_id = ?
     WHERE d.target_id = ?
@@ -36,9 +39,14 @@ export function getPendingHunterFirstTouch(
     subject: string | null;
     body: string;
     evidence_ids_json: string;
+    approval_state: string | null;
+    approved_by: string | null;
+    approved_at: string | null;
   } | undefined;
 
   if (!row) return null;
+  // Only a draft a human approved may be used as automated outbound content.
+  if (!isHumanApproved({ state: row.approval_state, approved_by: row.approved_by, approved_at: row.approved_at })) return null;
   let evidenceIds: string[] = [];
   try {
     const parsed = JSON.parse(row.evidence_ids_json || "[]");
