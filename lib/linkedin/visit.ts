@@ -1,4 +1,9 @@
+// HARD-DISABLED: automated LinkedIn actions violate LinkedIn's User Agreement
+// (no bots/scrapers/automated messaging). Every exported action below throws
+// "LinkedIn automation disabled: draft only, founder sends manually".
+// Code is kept for review only. See ./automation-disabled.ts.
 import type { Page } from "playwright";
+import { linkedInAutomationDisabled } from "./automation-disabled";
 
 /**
  * Visits a LinkedIn profile page. This registers as a profile view on LinkedIn.
@@ -31,6 +36,7 @@ import type { Page } from "playwright";
  * — see lib/linkedin/message.ts. Returned as messagingUrn when found.
  */
 export async function visitProfile(page: Page, linkedinUrl: string): Promise<{ isFirstDegree: boolean; messagingUrn: string | null }> {
+  linkedInAutomationDisabled("visit:visitProfile");
   await page.goto(linkedinUrl, { waitUntil: "domcontentloaded", timeout: 30000 });
   await page.waitForTimeout(3000 + Math.random() * 2000);
 
