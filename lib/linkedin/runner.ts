@@ -13,6 +13,9 @@ import { enrichProfile } from "@/lib/linkedin/enrich";
 import { matchPerson } from "@/lib/apollo";
 import { premium } from "@/lib/premium";
 import { decryptSecret } from "@/lib/crypto";
+import { LINKEDIN_AUTOMATION_DISABLED_MESSAGE, LINKEDIN_AUTOMATION_HARD_DISABLED, isLinkedInAutomationDisabledError } from "@/lib/linkedin/automation-disabled";
+import { hunterRunnersEnabled, HUNTER_RUNNERS_DISABLED_MESSAGE } from "@/lib/hunter/runner-flags";
+import { HUMAN_APPROVAL_REQUIRED_MESSAGE } from "@/lib/hunter/send-guard";
 
 // Minimum gap between Sales Nav profile enrichment calls per account (ms)
 const SALES_NAV_ENRICH_MIN_GAP_MS = 5 * 60 * 1000;
@@ -499,6 +502,15 @@ async function executeStep(
       return;
     }
 
+    // LinkedIn automation (visit / connect / message / Sales Nav InMail) is
+    // hard-disabled: it violates LinkedIn's User Agreement. The approved Hunter
+    // LinkedIn draft stays available for the founder to copy and send by hand.
+    if (LINKEDIN_AUTOMATION_HARD_DISABLED && step.step_type !== "email") {
+      log(db, runId, target.id, "warn", `${LINKEDIN_AUTOMATION_DISABLED_MESSAGE} — skipped ${step.step_type} step for ${name}`);
+      trSkip(db, tr, LINKEDIN_AUTOMATION_DISABLED_MESSAGE);
+      return;
+    }
+
     if (step.step_type === "visit") {
       db.prepare("UPDATE run_profile_tracks SET last_step_at = datetime('now') WHERE id = ?").run(tr.id);
       log(db, runId, target.id, "info", `Visiting ${name}`);
@@ -821,6 +833,15 @@ async function executeStep(
         runId,
         channel: "email",
       });
+      // Human-approval guard: automated email may only send a draft a human
+      // approved (getPendingHunterFirstTouch only returns human-approved
+      // drafts). Template / AI-generated follow-ups have no per-message human
+      // approval, so they are never sent automatically.
+      if (!hunterFirstTouchDraft) {
+        log(db, runId, target.id, "warn", `${HUMAN_APPROVAL_REQUIRED_MESSAGE} No approved draft for ${name} — email not sent`);
+        trSkip(db, tr, HUMAN_APPROVAL_REQUIRED_MESSAGE);
+        return;
+      }
       let emailSubject = "";
       let emailBody = "";
       if (hunterFirstTouchDraft) {
@@ -944,6 +965,11 @@ async function executeStep(
 
   } catch (err) {
     const msg = err instanceof Error ? err.message : String(err);
+    if (isLinkedInAutomationDisabledError(err)) {
+      log(db, runId, target.id, "warn", `${LINKEDIN_AUTOMATION_DISABLED_MESSAGE} — ${name}`);
+      trSkip(db, tr, LINKEDIN_AUTOMATION_DISABLED_MESSAGE);
+      return;
+    }
     if (err instanceof WeeklyLimitError) {
       log(db, runId, target.id, "error", `Weekly connection limit reached — pausing run`);
       db.prepare("UPDATE runs SET status = 'paused' WHERE id = ?").run(runId);
@@ -977,10 +1003,17 @@ async function executeStep(
 
 const g = global as typeof global & { __linkiGlobalRunnerStarted?: boolean };
 
-export function ensureGlobalRunnerStarted(): void {
-  if (g.__linkiGlobalRunnerStarted) return;
+export function ensureGlobalRunnerStarted(env: NodeJS.ProcessEnv = process.env): boolean {
+  // OFF by default: the sequencer (and its import scheduler) only runs with
+  // HUNTER_RUNNERS_ENABLED=true.
+  if (!hunterRunnersEnabled(env)) {
+    console.info(`[runner] Global loop not started. ${HUNTER_RUNNERS_DISABLED_MESSAGE}`);
+    return false;
+  }
+  if (g.__linkiGlobalRunnerStarted) return true;
   g.__linkiGlobalRunnerStarted = true;
   globalLoop().catch(err => console.error("[runner] Global loop crashed:", err));
+  return true;
 }
 
 async function globalLoop(): Promise<void> {
