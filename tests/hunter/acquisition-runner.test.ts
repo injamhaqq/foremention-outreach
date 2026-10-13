@@ -131,6 +131,7 @@ test("acquisition cycle discovers, qualifies and drafts once, then respects disc
     HUNTER_AUTOPILOT_MODE: "assisted",
     HUNTER_DEFAULT_RUN_ID: "run-1",
     HUNTER_MAX_COMPANIES_PER_CYCLE: "10",
+    HUNTER_RUNNERS_ENABLED: "true",
   } as NodeJS.ProcessEnv;
 
   const first = await runHunterAcquisitionCycle(db, {
@@ -197,6 +198,7 @@ test("acquisition cycle can create assisted evidence-only drafts without an exte
       HUNTER_DISCOVERY_QUERIES: "AI search SaaS",
       HUNTER_AUTOPILOT_MODE: "assisted",
       HUNTER_DEFAULT_RUN_ID: "run-1",
+      HUNTER_RUNNERS_ENABLED: "true",
     } as NodeJS.ProcessEnv,
     forceDiscovery: true,
     discoveryProviders,
