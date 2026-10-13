@@ -1,6 +1,11 @@
+// HARD-DISABLED: automated LinkedIn actions violate LinkedIn's User Agreement
+// (no bots/scrapers/automated messaging). Every exported action below throws
+// "LinkedIn automation disabled: draft only, founder sends manually".
+// Code is kept for review only. See ./automation-disabled.ts.
 import type { Page } from "playwright";
 import { getDb } from "@/lib/db";
 import { getSessionPage, saveSessionState, markNeedsReauth } from "@/lib/linkedin/session";
+import { linkedInAutomationDisabled, LINKEDIN_AUTOMATION_HARD_DISABLED } from "./automation-disabled";
 
 /**
  * Accepted-connection sync via the authoritative Voyager connections API.
@@ -43,6 +48,8 @@ const OVERLAP_MARGIN_MS = 24 * 60 * 60 * 1000; // re-check a day of overlap (ide
 const DECORATION = "com.linkedin.voyager.dash.deco.web.mynetwork.ConnectionListWithProfile-16";
 
 export function shouldSyncAccepted(accountId: string): boolean {
+  // LinkedIn automation is hard-disabled; never schedule an invitation-manager scrape.
+  if (LINKEDIN_AUTOMATION_HARD_DISABLED) return false;
   const db = getDb();
   const row = db.prepare("SELECT accepted_sync_at FROM accounts WHERE id = ?").get(accountId) as
     | { accepted_sync_at: string | null }
@@ -57,6 +64,7 @@ interface ApiConnection {
 }
 
 export async function syncAcceptedConnections(accountId: string): Promise<number> {
+  linkedInAutomationDisabled("sync-accepted:syncAcceptedConnections");
   const db = getDb();
   const page = await getSessionPage(accountId);
   let stamped = 0;
