@@ -25,7 +25,7 @@
     "imap-simple": "^5.1.0",
     "jsonwebtoken": "^9.0.3",
     "mailparser": "3.9.28",
-    "next": "16.3.5",
+    "next": "16.3.8",
     "next-auth": "4.24.15",
     "nodemailer": "10.0.10",
     "openai": "^6.34.0",
@@ -54,5 +54,10 @@
     "eslint-config-next": "16.1.6",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "utf7": {
+      "semver": "5.7.2"
+    }
   }
 }
