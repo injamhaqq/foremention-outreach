@@ -55,13 +55,19 @@ Customer Hunter surfaces are available at:
 
 ### Safety and evidence boundaries
 
-- **Assisted mode** is the production launch default and requires human approval for first touch. Guarded/full-auto modes must be selected explicitly and still honor evidence, suppression, verified-email, reply-stop, account-limit, and channel-health gates.
+- **Human approval for every automated send.** Autopilot (any `HUNTER_AUTOPILOT_MODE`, including `guarded_auto`/`full_auto`) only prepares drafts and never approves them. Enrollment and the sequencer only send drafts a human approved; approvals recorded as `autopilot`/`system`/`runner` are rejected. Template/AI follow-up email steps without a human-approved draft are skipped, not sent.
+- **Background runners are OFF by default.** Nothing starts on boot unless `HUNTER_RUNNERS_ENABLED=true`.
+- **LinkedIn automation is hard-disabled** (connect, message, InMail, profile visit/scrape, Sales Navigator list scrape, pending-invitation and stats scrapes, headless login). Automating these violates LinkedIn's User Agreement. Hunter still generates LinkedIn drafts; the founder copies and sends them manually. Calls return `LinkedIn automation disabled: draft only, founder sends manually`.
+- **Outbound email is locked by default.** Every send path (sequencer, inbox reply, manual compose, send-test) refuses to send unless `OUTREACH_EMAIL_SENDING_ENABLED` is exactly `true`. Compliance settings alone do not unlock sending.
+- **Only a signed-in founder session can approve a first touch.** `/api/hunter/approve` ignores any client-supplied approver name and rejects service-token calls. LinkedIn drafts are approved for manual sending only and are never enrolled into a run.
+- **Research and drafts use stored evidence only.** `/api/hunter/research` and `/api/hunter/drafts` reload signals from SQLite; client-posted evidence text or mini-audit payloads are not accepted.
+- **Email compliance is fail-closed.** Every email carries the sender's postal address, a signed one-click unsubscribe link and RFC 8058 `List-Unsubscribe`/`List-Unsubscribe-Post` headers. The sender refuses to send if `OUTREACH_POSTAL_ADDRESS`, `OUTREACH_UNSUBSCRIBE_BASE_URL` or `OUTREACH_UNSUBSCRIBE_SECRET` is missing, or if the recipient is suppressed. `GET`/`POST /api/unsubscribe?token=…` (public, token-verified) records the opt-out in `hunter_suppressions` and stops the contact's email tracks.
 - The production canary is separately armed, hard-forces assisted mode, limits discovery to one query / five results / two companies / two buyers per company, and cannot auto-send first touches.
-- Any genuine human reply stops automated follow-up across both email and LinkedIn for that contact.
-- Unsubscribe, complaint, hard bounce, and negative intent create durable suppressions that AI cannot override.
+- Any genuine human reply stops automated follow-up across both email and LinkedIn for that contact. (Replies are detected from email IMAP only; LinkedIn reply sync is disabled with the rest of LinkedIn automation. Classification is deterministic keyword rules, not an AI model.)
+- Unsubscribe, complaint, hard bounce, and negative intent create durable suppressions that AI cannot override. (Complaints are recorded only when entered through `/api/hunter/reply`; there is no automated complaint/feedback-loop feed.)
 - Personalized factual claims must trace back to stored evidence or a bounded Foremention mini-audit.
 - The Foremention private mini-audit accepts only 3–5 questions and is server-to-server only.
-- Email execution requires a verified/valid/deliverable work-email state at both decision time and send time.
+- Email execution requires a verified/valid/deliverable email status at both decision time and send time. (The status comes from the buyer provider; Hunter.io results with confidence ≥ 0.8 are stored as "verified". No independent SMTP verification or free-mail-domain check is performed.)
 - Provider usage is recorded separately from known monetary cost; unknown provider pricing is never presented as zero-dollar spend.
 - Automated tests and CI use synthetic fixtures and do **not** send real external prospect messages.
 - `paid_pilot`, `customer`, and `expansion` transitions require explicit commercial evidence.
@@ -80,7 +86,22 @@ HUNTER_AI_API_KEY=
 HUNTER_AI_MODEL=
 
 HUNTER_RUNNER_INTERVAL_MS=120000
+
+# Safety switches (see "Safety and evidence boundaries")
+HUNTER_RUNNERS_ENABLED=false          # exactly "true" starts runners/autopilot/schedulers
+OUTREACH_EMAIL_SENDING_ENABLED=false  # exactly "true" unlocks outbound email (founder review first)
+OUTREACH_POSTAL_ADDRESS=              # required to send any email
+OUTREACH_UNSUBSCRIBE_BASE_URL=        # required, public URL serving /api/unsubscribe
+OUTREACH_UNSUBSCRIBE_SECRET=          # required, >= 16 chars, keep stable
 ```
+
+| Variable | Default | Effect |
+| --- | --- | --- |
+| `HUNTER_RUNNERS_ENABLED` | unset (off) | Starts the Hunter continuous cycle, background autopilot drafting, the workflow sequencer and import scheduler only when exactly `true`. `POST /api/runs/:id/start` returns 409 while off. In Docker Compose it defaults to `false` and overrides `.env.local`; export it in the shell or a compose `.env` file to enable. |
+| `OUTREACH_EMAIL_SENDING_ENABLED` | unset (locked) | Outbound email kill switch. Only exactly `true` lets `sendEmail()` open an SMTP connection; otherwise every send path throws `email_sending_disabled`. Docker Compose defaults it to `false`. |
+| `OUTREACH_POSTAL_ADDRESS` | none | Physical postal address added to every email footer. Missing → no email is sent. |
+| `OUTREACH_UNSUBSCRIBE_BASE_URL` | none | Public base URL for the one-click unsubscribe link (`<base>/api/unsubscribe?token=…`). Missing/invalid → no email is sent. |
+| `OUTREACH_UNSUBSCRIBE_SECRET` | none | HMAC key signing unsubscribe tokens (min 16 chars). Missing/short → no email is sent. |
 
 Groq, OpenRouter, OpenAI, or another OpenAI-compatible endpoint can be used through the documented environment variables in `.env.example`.
 
@@ -111,6 +132,8 @@ Keep exactly one Litestream replicator for this database/replica path and test a
 restore before treating backup as production-ready.
 
 ---
+
+> **Fork status (read before the upstream Linki sections below).** The Features, What's new, Setup and Managed edition sections describe upstream Linki. In this Foremention fork, all LinkedIn automation is hard-disabled (`lib/linkedin/automation-disabled.ts`): server-side LinkedIn login, profile visits, connection requests, messages/InMail, Sales Navigator import and enrichment, stats/invitation scrapes, and LinkedIn reply/acceptance sync all throw `LinkedIn automation disabled: draft only, founder sends manually`. Automated template/AI follow-up email steps are skipped unless a human approved that exact draft, background runners are off unless `HUNTER_RUNNERS_ENABLED=true`, and outbound email is locked unless `OUTREACH_EMAIL_SENDING_ENABLED=true`. Claims below such as "63% improvement in connection reliability" are upstream marketing copy and have not been verified in this fork. See `docs/safety/hunter-verification.md` for the feature-by-feature verdicts.
 
 ## Features
 

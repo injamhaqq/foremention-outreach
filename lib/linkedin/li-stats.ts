@@ -1,4 +1,9 @@
+// HARD-DISABLED: automated LinkedIn actions violate LinkedIn's User Agreement
+// (no bots/scrapers/automated messaging). Every exported action below throws
+// "LinkedIn automation disabled: draft only, founder sends manually".
+// Code is kept for review only. See ./automation-disabled.ts.
 import type { Page } from "playwright";
+import { linkedInAutomationDisabled } from "./automation-disabled";
 
 export interface LinkedInStats {
   connections: number;
@@ -11,6 +16,7 @@ function parseNum(str: string): number {
 }
 
 export async function scrapeLinkedInStats(page: Page): Promise<LinkedInStats> {
+  linkedInAutomationDisabled("li-stats:scrapeLinkedInStats");
   // ── Connections ───────────────────────────────────────────
   await page.goto("https://www.linkedin.com/mynetwork/invite-connect/connections/", {
     waitUntil: "domcontentloaded",

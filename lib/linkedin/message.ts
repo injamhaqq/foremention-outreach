@@ -1,5 +1,10 @@
+// HARD-DISABLED: automated LinkedIn actions violate LinkedIn's User Agreement
+// (no bots/scrapers/automated messaging). Every exported action below throws
+// "LinkedIn automation disabled: draft only, founder sends manually".
+// Code is kept for review only. See ./automation-disabled.ts.
 import type { Page } from "playwright";
 import { visitProfile } from "./visit";
+import { linkedInAutomationDisabled } from "./automation-disabled";
 
 export class NotConnectedError extends Error {}
 
@@ -35,6 +40,7 @@ export async function sendMessage(
   linkedinUrl: string,
   messagingUrn?: string | null
 ): Promise<SendMessageResult> {
+  linkedInAutomationDisabled("message:sendMessage");
   if (messagingUrn) {
     const opened = await openComposeByUrn(page, messagingUrn);
     if (opened) {

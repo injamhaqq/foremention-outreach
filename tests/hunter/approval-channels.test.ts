@@ -32,7 +32,7 @@ test("enrollment can restrict tracks to the healthy channel set", () => {
   ensureHunterSchema(db);
   const repo = createHunterRepository(db);
   const draft = repo.saveHunterDraft({ targetId:"t1", companyId:"c1", channel:"email", subject:"Hi", body:"Evidence", evidenceIds:["x"], firstTouchFingerprint:"t1:email:first" });
-  repo.setHunterApproval({ draftId:draft.id, state:"approved", approvedBy:"autopilot" });
+  repo.setHunterApproval({ draftId:draft.id, state:"approved", approvedBy:"founder" });
   enrollApprovedHunterDraft(db, { draftId:draft.id, runId:"r1", allowedChannels:["email"] });
   const tracks = db.prepare("SELECT track FROM run_profile_tracks").all() as Array<{track:string}>;
   assert.deepEqual(tracks.map((row)=>row.track), ["email"]);

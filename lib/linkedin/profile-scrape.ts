@@ -1,3 +1,7 @@
+// HARD-DISABLED: automated LinkedIn actions violate LinkedIn's User Agreement
+// (no bots/scrapers/automated messaging). Every exported action below throws
+// "LinkedIn automation disabled: draft only, founder sends manually".
+// Code is kept for review only. See ./automation-disabled.ts.
 /**
  * Live profile scrape → clean structured JSON for an LLM.
  *
@@ -12,6 +16,7 @@
  * Read-only. ~10-12s per profile (one Sales Nav page load + one Voyager fetch).
  */
 import type { BrowserContext } from "playwright";
+import { linkedInAutomationDisabled } from "./automation-disabled";
 
 export interface ProfilePost {
   activityUrn: string;
@@ -262,6 +267,7 @@ export async function scrapeProfile(
   ctx: BrowserContext,
   target: { sales_nav_url: string | null; linkedin_url: string | null }
 ): Promise<ProfileScrape> {
+  linkedInAutomationDisabled("profile-scrape:scrapeProfile");
   if (!target.sales_nav_url) {
     throw new Error("Contact has no sales_nav_url — cannot scrape the Sales Nav profile.");
   }

@@ -1,18 +1,25 @@
 export async function register() {
   // Only run on the Node.js server runtime, not in the browser/edge.
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    try {
-      const { ensureGlobalRunnerStarted } = await import("@/lib/linkedin/runner");
-      ensureGlobalRunnerStarted();
-    } catch (err) {
-      console.error("[instrumentation] Failed to start Linki runner:", err);
-    }
+    // Runners are OFF by default. They start only with HUNTER_RUNNERS_ENABLED=true.
+    const { hunterRunnersEnabled, HUNTER_RUNNERS_DISABLED_MESSAGE } = await import("@/lib/hunter/runner-flags");
+    const runnersEnabled = hunterRunnersEnabled(process.env);
+    if (!runnersEnabled) console.info(`[instrumentation] ${HUNTER_RUNNERS_DISABLED_MESSAGE}`);
 
-    try {
-      const { ensureHunterRunnerStarted } = await import("@/lib/hunter/runner");
-      ensureHunterRunnerStarted();
-    } catch (err) {
-      console.error("[instrumentation] Failed to start Customer Hunter runner:", err);
+    if (runnersEnabled) {
+      try {
+        const { ensureGlobalRunnerStarted } = await import("@/lib/linkedin/runner");
+        ensureGlobalRunnerStarted();
+      } catch (err) {
+        console.error("[instrumentation] Failed to start Linki runner:", err);
+      }
+
+      try {
+        const { ensureHunterRunnerStarted } = await import("@/lib/hunter/runner");
+        ensureHunterRunnerStarted();
+      } catch (err) {
+        console.error("[instrumentation] Failed to start Customer Hunter runner:", err);
+      }
     }
 
     if (process.env.NODE_ENV === "production" && String(process.env.FOREMENTION_OUTREACH_SECRET || "").trim()) {

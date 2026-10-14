@@ -5,6 +5,7 @@ import { processPendingHunterEmailReplies, processStampedHunterLinkedInReplies, 
 import { qualifyHunterCandidate } from "./qualification";
 import { createHunterRepository } from "./repository";
 import { HUNTER_OPPORTUNITY_STAGES, transitionHunterOpportunity, type HunterOpportunityStage } from "./opportunities";
+import { hunterRunnersEnabled, HUNTER_RUNNERS_DISABLED_MESSAGE } from "./runner-flags";
 import { miniAuditPublicKeyFromSecret, miniAuditSigningKeyId } from "./request-signing";
 import type { HunterSignalInput, HunterSignalType } from "./types";
 
@@ -210,9 +211,14 @@ type HunterGlobal = typeof globalThis & {
   __forementionHunterTimer?: ReturnType<typeof setInterval>;
 };
 
-export function ensureHunterRunnerStarted() {
+export function ensureHunterRunnerStarted(env: NodeJS.ProcessEnv = process.env): boolean {
   const holder = globalThis as HunterGlobal;
-  if (holder.__forementionHunterRunnerStarted) return;
+  // OFF by default: never start the continuous cycle without an explicit opt-in.
+  if (!hunterRunnersEnabled(env)) {
+    console.info(`[hunter] Customer Hunter runner not started. ${HUNTER_RUNNERS_DISABLED_MESSAGE}`);
+    return false;
+  }
+  if (holder.__forementionHunterRunnerStarted) return true;
   holder.__forementionHunterRunnerStarted = true;
 
   const execute = () => {
@@ -250,4 +256,5 @@ export function ensureHunterRunnerStarted() {
       `[hunter] mini-audit signing key id=${miniAuditSigningKeyId(signingSecret)} public=${miniAuditPublicKeyFromSecret(signingSecret)}`
     );
   }
+  return true;
 }

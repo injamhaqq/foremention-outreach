@@ -24,6 +24,11 @@ function makeDb() {
       ('email-draft','target-1','company-1','email','AI search at Acme','Email body','["e1"]','fp-email','enrolled'),
       ('linkedin-draft','target-1','company-1','linkedin',NULL,'LinkedIn body','["e1"]','fp-linkedin','enrolled')
   `).run();
+  db.prepare(`
+    INSERT INTO hunter_approvals (id, draft_id, state, approved_by, approved_at) VALUES
+      ('ha-email','email-draft','approved','founder','2026-09-18T12:00:00.000Z'),
+      ('ha-linkedin','linkedin-draft','approved','founder','2026-09-18T12:00:00.000Z')
+  `).run();
   return db;
 }
 
@@ -56,4 +61,20 @@ test("delivery recording is idempotent", () => {
   markHunterFirstTouchDelivered(db, input);
   const row = db.prepare("SELECT COUNT(*) c FROM hunter_draft_deliveries").get() as { c: number };
   assert.equal(row.c, 1);
+});
+
+test("drafts without a human approval are never returned as automated first-touch content", () => {
+  const db = makeDb();
+  db.prepare("DELETE FROM hunter_approvals WHERE draft_id = 'email-draft'").run();
+  assert.equal(getPendingHunterFirstTouch(db, { targetId: "target-1", runId: "run-1", channel: "email" }), null);
+
+  db.prepare(`INSERT INTO hunter_approvals (id, draft_id, state, approved_by, approved_at)
+    VALUES ('ha-email','email-draft','approved','autopilot:full_auto','2026-09-18T12:00:00.000Z')`).run();
+  assert.equal(getPendingHunterFirstTouch(db, { targetId: "target-1", runId: "run-1", channel: "email" }), null);
+
+  db.prepare("UPDATE hunter_approvals SET approved_by = 'founder', state = 'rejected' WHERE draft_id = 'email-draft'").run();
+  assert.equal(getPendingHunterFirstTouch(db, { targetId: "target-1", runId: "run-1", channel: "email" }), null);
+
+  db.prepare("UPDATE hunter_approvals SET state = 'approved' WHERE draft_id = 'email-draft'").run();
+  assert.equal(getPendingHunterFirstTouch(db, { targetId: "target-1", runId: "run-1", channel: "email" })?.id, "email-draft");
 });

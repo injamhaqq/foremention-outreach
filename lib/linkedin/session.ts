@@ -1,8 +1,13 @@
+// HARD-DISABLED: automated LinkedIn actions violate LinkedIn's User Agreement
+// (no bots/scrapers/automated messaging). Every exported action below throws
+// "LinkedIn automation disabled: draft only, founder sends manually".
+// Code is kept for review only. See ./automation-disabled.ts.
 import { chromium } from "playwright-extra";
 import type { Browser, BrowserContext, Page } from "playwright";
 import StealthPlugin from "puppeteer-extra-plugin-stealth";
 import { getDb } from "@/lib/db";
 import { encryptSecret, decryptSecret } from "@/lib/crypto";
+import { linkedInAutomationDisabled } from "./automation-disabled";
 
 chromium.use(StealthPlugin());
 
@@ -88,6 +93,7 @@ async function getOrCreateContext(accountId: string): Promise<BrowserContext> {
 
 /** Returns the BrowserContext for an account (for API calls via ctx.request) */
 export async function getSessionContext(accountId: string): Promise<BrowserContext> {
+  linkedInAutomationDisabled("session:getSessionContext");
   try {
     return await getOrCreateContext(accountId);
   } catch {
@@ -114,6 +120,7 @@ let pageQueueTail: Promise<void> = Promise.resolve();
 
 /** Returns a new Page from the account's browser context */
 export async function getSessionPage(accountId: string): Promise<Page> {
+  linkedInAutomationDisabled("session:getSessionPage");
   let releaseTurn!: () => void;
   const myTurn = new Promise<void>(r => { releaseTurn = r; });
   const previousTail = pageQueueTail;
@@ -197,6 +204,7 @@ export async function markNeedsReauth(accountId: string): Promise<void> {
  * Saves the full storage state to DB and marks account as authenticated.
  */
 export async function authenticateAccount(accountId: string): Promise<void> {
+  linkedInAutomationDisabled("session:authenticateAccount");
   const db = getDb();
   const account = db.prepare("SELECT * FROM accounts WHERE id = ?").get(accountId) as
     | { email: string }
@@ -395,6 +403,7 @@ export async function startHeadlessLogin(
   email: string,
   password: string
 ): Promise<LoginResult> {
+  linkedInAutomationDisabled("session:startHeadlessLogin");
   sweepPendingLogins();
   await clearPendingLogin(accountId);
 
@@ -436,6 +445,7 @@ export async function startHeadlessLogin(
 }
 
 export async function submitLoginChallenge(accountId: string, code: string): Promise<LoginResult> {
+  linkedInAutomationDisabled("session:submitLoginChallenge");
   const p = pendingLogins.get(accountId);
   if (!p) return { status: "error", message: "No login in progress (it may have timed out — start again)." };
 
@@ -477,6 +487,7 @@ export async function submitLoginChallenge(accountId: string, code: string): Pro
  * interstitial. If still pending, returns the challenge so the user can retry.
  */
 export async function awaitLoginApproval(accountId: string): Promise<LoginResult> {
+  linkedInAutomationDisabled("session:awaitLoginApproval");
   const p = pendingLogins.get(accountId);
   if (!p) return { status: "error", message: "No login in progress (it may have timed out — start again)." };
 

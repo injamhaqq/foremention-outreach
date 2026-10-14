@@ -49,5 +49,9 @@ export function evaluateAutopilotDecision(input: HunterAutopilotInput): HunterAu
     return { action: "approval_required", allowedChannels, reasons: ["route_requires_review"] };
   }
 
-  return { action: "auto_start", allowedChannels, reasons: [] };
+  // Safety: autopilot never approves or starts outreach on its own. Even in
+  // guarded_auto / full_auto it only prepares drafts; a human must approve each
+  // first touch before anything can be sent. ("auto_start" is kept in the type
+  // for backwards compatibility but is never returned.)
+  return { action: "approval_required", allowedChannels, reasons: ["human_approval_required"] };
 }

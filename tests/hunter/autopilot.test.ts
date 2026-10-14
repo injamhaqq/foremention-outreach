@@ -14,9 +14,10 @@ const base = {
   linkedinHealthy: true,
 };
 
-test("guarded autopilot can auto-start a qualified, evidenced prospect", () => {
+test("guarded autopilot never auto-starts: a qualified, evidenced prospect still needs human approval", () => {
   const decision = evaluateAutopilotDecision(base);
-  assert.equal(decision.action, "auto_start");
+  assert.equal(decision.action, "approval_required");
+  assert.deepEqual(decision.reasons, ["human_approval_required"]);
   assert.equal(decision.allowedChannels.email, true);
   assert.equal(decision.allowedChannels.linkedin, true);
 });
@@ -33,7 +34,16 @@ test("autopilot blocks suppressed or stale prospects", () => {
 
 test("autopilot can continue on a healthy channel when the other channel is paused", () => {
   const decision = evaluateAutopilotDecision({ ...base, linkedinHealthy: false });
-  assert.equal(decision.action, "auto_start");
+  assert.equal(decision.action, "approval_required");
   assert.equal(decision.allowedChannels.email, true);
   assert.equal(decision.allowedChannels.linkedin, false);
+});
+
+test("no autopilot mode ever returns auto_start", () => {
+  for (const mode of ["manual", "assisted", "guarded_auto", "full_auto"] as const) {
+    for (const route of ["priority", "good_cold", "cold_fit", "monitor"] as const) {
+      const decision = evaluateAutopilotDecision({ ...base, mode, route });
+      assert.notEqual(decision.action, "auto_start", `${mode}/${route}`);
+    }
+  }
 });

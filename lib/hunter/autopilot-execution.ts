@@ -1,7 +1,6 @@
 import { randomUUID } from "crypto";
 import type Database from "better-sqlite3";
 import type { HunterAiProvider } from "./ai";
-import { enrollApprovedHunterDraft } from "./approval";
 import { evaluateAutopilotDecision, type HunterAutopilotMode } from "./autopilot";
 import { generateHunterDraft } from "./drafts";
 import { hasVerifiedWorkEmail } from "./contact-verification";
@@ -218,30 +217,8 @@ export async function processHunterAutopilotTarget(
     drafts.push({ id: saved.id, channel });
   }
 
-  if (decision.action === "approval_required") return { ...decision, drafts };
-  if (!input.runId) {
-    return {
-      action: "approval_required" as const,
-      allowedChannels: decision.allowedChannels,
-      reasons: ["default_run_not_configured"],
-      drafts,
-    };
-  }
-
-  const allowedChannels = channels;
-  for (const draft of drafts) {
-    repository.setHunterApproval({
-      draftId: draft.id,
-      state: "approved",
-      approvedBy: `autopilot:${input.mode}`,
-      note: "Approved by configured Foremention Customer Hunter autopilot policy.",
-    });
-    enrollApprovedHunterDraft(db, {
-      draftId: draft.id,
-      runId: input.runId,
-      allowedChannels,
-    });
-  }
-
+  // Autopilot is draft-only. It never records an approval and never enrolls a
+  // prospect: the founder approves each first touch via /api/hunter/approve.
+  // (input.runId is kept for API compatibility; enrollment happens on approval.)
   return { ...decision, drafts };
 }

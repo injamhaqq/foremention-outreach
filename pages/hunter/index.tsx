@@ -132,7 +132,7 @@ export default function HunterBuyerFeedPage() {
             <div className="text-[10px] uppercase tracking-[0.2em] text-info font-medium">Foremention Outreach</div>
             <h1 className="text-2xl font-semibold text-base-content mt-1">Customer Hunter</h1>
             <p className="text-sm text-base-content/45 mt-1 max-w-2xl">
-              Intent buyers, evidence, research, and multichannel cold outreach in one operating view.
+              Intent buyers, evidence, research, and founder-approved outreach drafts in one operating view. LinkedIn is draft-only; email sending is locked until the founder unlocks it.
             </p>
           </div>
           <div className="flex gap-2 flex-wrap">
@@ -180,6 +180,11 @@ export default function HunterBuyerFeedPage() {
                       ? "Core acquisition ready · Foremention mini-audit still needs configuration"
                       : "Customer acquisition setup has blockers"}
                 </div>
+                {feed.readiness.sending && !feed.readiness.sending.ready && (
+                  <div className="text-[11px] text-warning/80 mt-1" data-testid="sending-locked">
+                    Sending locked: {feed.readiness.sending.reasons.map((item) => item.replaceAll("_", " ")).join(" · ")}. Nothing is sent automatically.
+                  </div>
+                )}
                 {!feed.readiness.fullyReady && (
                   <div className="text-[11px] text-base-content/45 mt-1">
                     {[
@@ -194,7 +199,7 @@ export default function HunterBuyerFeedPage() {
                 )}
               </div>
               <div className="text-[10px] text-base-content/35">
-                Mode: {feed.readiness.execution.autopilotMode} · {feed.readiness.execution.channels.verifiedEmailAccounts} verified email · {feed.readiness.execution.channels.authenticatedLinkedInAccounts} LinkedIn
+                Mode: {feed.readiness.execution.autopilotMode} (drafts only, human approval required) · {feed.readiness.execution.channels.verifiedEmailAccounts} verified email · LinkedIn: manual send only
               </div>
             </div>
           </div>
@@ -266,10 +271,15 @@ export default function HunterBuyerFeedPage() {
                 )}
               </div>
               <div className="rounded-lg border border-base-300/50 bg-base-300/20 px-3 py-2">
-                <div className="text-base-content/35 text-[10px] uppercase tracking-wider">Autopilot</div>
+                <div className="text-base-content/35 text-[10px] uppercase tracking-wider">Autopilot drafts</div>
                 <div className="text-base-content font-semibold mt-0.5">
-                  {feed.operations.autopilot.autoStartedToday} auto · {feed.operations.autopilot.approvalRequiredToday} review · {feed.operations.autopilot.blockedToday} blocked
+                  {feed.operations.autopilot.approvalRequiredToday} awaiting review · {feed.operations.autopilot.blockedToday} blocked
                 </div>
+                {feed.operations.autopilot.autoStartedToday > 0 && (
+                  <div className="text-[9px] text-warning/70 mt-0.5">
+                    {feed.operations.autopilot.autoStartedToday} legacy auto-start record{feed.operations.autopilot.autoStartedToday === 1 ? "" : "s"} (auto-start is disabled)
+                  </div>
+                )}
               </div>
             </div>
           </section>
@@ -308,7 +318,7 @@ export default function HunterBuyerFeedPage() {
           <div className="bg-base-200 border border-base-300/50 rounded-xl py-16 px-6 text-center">
             <div className="text-base-content/70 font-medium">No buyers match this view yet.</div>
             <p className="text-sm text-base-content/35 mt-2">
-              Signals and qualification results will appear here as the Hunter runner processes your prospect universe.
+              Signals and qualification results appear here after a founder-triggered discovery run (or the background runner, which is off unless HUNTER_RUNNERS_ENABLED=true).
             </p>
           </div>
         ) : (

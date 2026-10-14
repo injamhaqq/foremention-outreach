@@ -1,6 +1,8 @@
 import type Database from "better-sqlite3";
 import { evaluateHunterPersistenceReadiness } from "./persistence-readiness";
 import { isFirecrawlDiscoveryConfigured } from "./source-providers";
+import { emailComplianceProblems, emailSendingEnabled } from "../email/compliance";
+import { hunterRunnersEnabled } from "./runner-flags";
 
 function value(env: NodeJS.ProcessEnv, key: string) {
   return String(env[key] || "").trim();
@@ -94,7 +96,9 @@ export function evaluateHunterReadiness(
   const runId = value(env, "HUNTER_DEFAULT_RUN_ID");
   const runReady = activeRun(db, runId);
   const executionReasons: string[] = [];
-  if (authenticatedLinkedInAccounts + verifiedEmailAccounts === 0) executionReasons.push("no_outreach_channel");
+  // LinkedIn automation is hard-disabled (draft only, founder sends manually),
+  // so an authenticated LinkedIn account is NOT an automated outreach channel.
+  if (verifiedEmailAccounts === 0) executionReasons.push("no_outreach_channel");
   if (!runId) executionReasons.push("default_run_not_configured");
   else if (!runReady) executionReasons.push("default_run_not_active");
 
@@ -138,6 +142,21 @@ export function evaluateHunterReadiness(
     autopilotMode: value(env, "HUNTER_AUTOPILOT_MODE") || "assisted",
   };
 
+  // Sending is reported separately and is NOT part of fullyReady: drafting,
+  // research and the assisted canary never send. This block exists so the UI
+  // never implies outreach can go out while every send path is locked.
+  const sendingReasons: string[] = [];
+  if (!emailSendingEnabled(env)) sendingReasons.push("email_sending_locked");
+  if (emailComplianceProblems(env).length) sendingReasons.push("email_compliance_not_configured");
+  if (!hunterRunnersEnabled(env)) sendingReasons.push("runners_disabled");
+  const sending = {
+    ready: sendingReasons.length === 0,
+    reasons: sendingReasons,
+    emailSendingEnabled: emailSendingEnabled(env),
+    runnersEnabled: hunterRunnersEnabled(env),
+    linkedinAutomation: "disabled_manual_only" as const,
+  };
+
   // External AI improves research and enables Foremention-native mini-audits,
   // but evidence-only drafting keeps the assisted launch path functional.
   const assistedLaunchReady = persistence.ready && discovery.ready && buyers.ready && execution.ready;
@@ -151,6 +170,7 @@ export function evaluateHunterReadiness(
     ai,
     forementionMiniAudit,
     execution,
+    sending,
     canary: {
       enabled: /^(1|true|yes|on)$/i.test(value(env, "HUNTER_CANARY_ENABLED")),
       mode: "assisted" as const,

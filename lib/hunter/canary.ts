@@ -37,5 +37,7 @@ export async function runHunterAssistedCanary(
     ...options,
     env,
     forceDiscovery: true,
+    // The canary is founder-triggered (HUNTER_CANARY_ENABLED + explicit confirmation).
+    manualTrigger: true,
   });
 }

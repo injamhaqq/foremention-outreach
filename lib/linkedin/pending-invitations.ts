@@ -1,4 +1,9 @@
+// HARD-DISABLED: automated LinkedIn actions violate LinkedIn's User Agreement
+// (no bots/scrapers/automated messaging). Every exported action below throws
+// "LinkedIn automation disabled: draft only, founder sends manually".
+// Code is kept for review only. See ./automation-disabled.ts.
 import type { Page } from "playwright";
+import { linkedInAutomationDisabled } from "./automation-disabled";
 
 /**
  * Scrapes the full list of vanity names from the sent invitations page.
@@ -10,6 +15,7 @@ import type { Page } from "playwright";
  * Works headless — the scrollable element is <main id="workspace">, not window.
  */
 export async function scrapePendingInvitationVanityNames(page: Page): Promise<Set<string>> {
+  linkedInAutomationDisabled("pending-invitations:scrapePendingInvitationVanityNames");
   await page.goto("https://www.linkedin.com/mynetwork/invitation-manager/sent/", {
     waitUntil: "domcontentloaded",
     timeout: 30000,
