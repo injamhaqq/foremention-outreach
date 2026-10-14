@@ -8,6 +8,7 @@ import {
   createUnsubscribeToken,
   EmailComplianceError,
   emailComplianceProblems,
+  emailSendingEnabled,
   requireEmailComplianceConfig,
   verifyUnsubscribeToken,
 } from "../../lib/email/compliance.ts";
@@ -21,6 +22,8 @@ const ENV = {
   OUTREACH_UNSUBSCRIBE_BASE_URL: "https://outreach.example.test/",
   OUTREACH_UNSUBSCRIBE_SECRET: SECRET,
 } as NodeJS.ProcessEnv;
+// Compliance config + the explicit founder unlock. Only these tests unlock sending.
+const SEND_ENV = { ...ENV, OUTREACH_EMAIL_SENDING_ENABLED: "true" } as NodeJS.ProcessEnv;
 
 const ACCOUNT: EmailAccount = {
   id: "mail-1",
@@ -98,7 +101,11 @@ test("compliant email has postal address footer, one-click link and RFC 8058 hea
 test("sendEmail fails closed when compliance config is missing (no SMTP connection made)", async () => {
   const db = makeDb();
   const transport = fakeTransport();
-  for (const env of [{}, { ...ENV, OUTREACH_POSTAL_ADDRESS: "" }, { ...ENV, OUTREACH_UNSUBSCRIBE_BASE_URL: "" }]) {
+  for (const env of [
+    { OUTREACH_EMAIL_SENDING_ENABLED: "true" },
+    { ...SEND_ENV, OUTREACH_POSTAL_ADDRESS: "" },
+    { ...SEND_ENV, OUTREACH_UNSUBSCRIBE_BASE_URL: "" },
+  ]) {
     await assert.rejects(
       sendEmail(ACCOUNT, "bob@beta.example", "Hi", "Body", { db, env: env as NodeJS.ProcessEnv, createTransport: transport.createTransport }),
       (error: unknown) => error instanceof EmailComplianceError && error.code === "compliance_not_configured",
@@ -107,10 +114,39 @@ test("sendEmail fails closed when compliance config is missing (no SMTP connecti
   assert.equal(transport.sent.length, 0);
 });
 
+test("sendEmail is locked by default even when compliance config is complete (no SMTP connection made)", async () => {
+  const db = makeDb();
+  const transport = fakeTransport();
+  for (const flag of [undefined, "", "false", "0", "1", "yes", "on"]) {
+    const env = { ...ENV, ...(flag === undefined ? {} : { OUTREACH_EMAIL_SENDING_ENABLED: flag }) } as NodeJS.ProcessEnv;
+    await assert.rejects(
+      sendEmail(ACCOUNT, "bob@beta.example", "Hi", "Body", { db, env, createTransport: transport.createTransport }),
+      (error: unknown) => error instanceof EmailComplianceError && error.code === "email_sending_disabled",
+    );
+  }
+  assert.equal(transport.sent.length, 0);
+  assert.equal(emailSendingEnabled({} as NodeJS.ProcessEnv), false);
+  assert.equal(emailSendingEnabled({ OUTREACH_EMAIL_SENDING_ENABLED: "1" } as NodeJS.ProcessEnv), false);
+  assert.equal(emailSendingEnabled({ OUTREACH_EMAIL_SENDING_ENABLED: "true" } as NodeJS.ProcessEnv), true);
+});
+
+test("every send path routes through the guarded sender (no direct SMTP transport elsewhere)", () => {
+  for (const file of [
+    "lib/linkedin/runner.ts",
+    "pages/api/inbox/reply.ts",
+    "pages/api/email-accounts/[id]/send-test.ts",
+    "pages/api/targets/[id]/emails.ts",
+  ]) {
+    const source = readFileSync(file, "utf8");
+    assert.match(source, /sendEmail\(/, `${file} should send through sendEmail()`);
+    assert.doesNotMatch(source, /sendMail\(|createTransport\(/, `${file} must not open its own SMTP transport`);
+  }
+});
+
 test("sendEmail attaches footer and List-Unsubscribe headers when configured", async () => {
   const db = makeDb();
   const transport = fakeTransport();
-  await sendEmail(ACCOUNT, "bob@beta.example", "Hi", "Body", { db, env: ENV, createTransport: transport.createTransport });
+  await sendEmail(ACCOUNT, "bob@beta.example", "Hi", "Body", { db, env: SEND_ENV, createTransport: transport.createTransport });
   assert.equal(transport.sent.length, 1);
   const message = transport.sent[0] as { text: string; headers: Record<string, string>; to: string };
   assert.equal(message.to, "bob@beta.example");
@@ -142,7 +178,7 @@ test("one-click unsubscribe records the opt-out, stops email tracks, and blocks 
   assert.equal(isRecipientSuppressed(db, "JANE@acme.example"), true);
   const transport = fakeTransport();
   await assert.rejects(
-    sendEmail(ACCOUNT, "Jane@Acme.example", "Hi", "Body", { db, env: ENV, createTransport: transport.createTransport }),
+    sendEmail(ACCOUNT, "Jane@Acme.example", "Hi", "Body", { db, env: SEND_ENV, createTransport: transport.createTransport }),
     (error: unknown) => error instanceof EmailComplianceError && error.code === "recipient_suppressed",
   );
   assert.equal(transport.sent.length, 0);

@@ -109,18 +109,21 @@ export default function HunterResearchPage() {
   }
 
   async function approve(draft: Draft) {
-    if (!runId) { setError("Choose an existing campaign run before approving first touch."); return; }
+    if (draft.channel === "email" && !runId) { setError("Choose an existing campaign run before approving an email first touch."); return; }
     setWorking(`approve:${draft.id}`); setError(""); setMessage("");
     try {
       const response = await fetch("/api/hunter/approve", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ draftId: draft.id, runId, approvedBy: "founder" }),
+        body: JSON.stringify({ draftId: draft.id, runId }),
       });
       const body = await response.json();
       if (!response.ok) throw new Error(body?.error || "Approval failed.");
-      setDrafts((current) => current.map((item) => item.id === draft.id ? { ...item, status: "enrolled" } : item));
-      setMessage("Approved and enrolled exactly once. Linki now owns sequence execution and limits.");
+      const manual = Boolean(body?.data?.manualSendRequired);
+      setDrafts((current) => current.map((item) => item.id === draft.id ? { ...item, status: manual ? "approved" : "enrolled" } : item));
+      setMessage(manual
+        ? "Approved for manual sending. LinkedIn automation is disabled: copy this text and send it from LinkedIn yourself."
+        : "Approved and enrolled once on the email track. It is only sent if outbound email is unlocked, compliance is configured, the contact is not suppressed, and runners are on.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Approval failed.");
     } finally {
@@ -177,7 +180,7 @@ export default function HunterResearchPage() {
                   <option value="">Choose campaign run</option>
                   {runs.map((run) => <option key={run.id} value={run.id}>{run.workflow_name || run.id} · {run.status}</option>)}
                 </select>
-                <p className="text-[11px] text-base-content/30 mt-2">Approval enrolls the buyer into Linki&apos;s existing run; it does not bypass mailbox or LinkedIn limits.</p>
+                <p className="text-[11px] text-base-content/30 mt-2">Approving an email draft enrolls the buyer into this run&apos;s email track only; sending stays locked until the founder unlocks it. LinkedIn drafts are never automated: approve, then send by hand.</p>
               </div>
             </section>
 
@@ -221,10 +224,10 @@ export default function HunterResearchPage() {
                       <span className="text-xs uppercase tracking-wider text-info">{draft.channel}</span>
                       <span className="text-[10px] px-2 py-0.5 rounded-full border border-base-300 text-base-content/40">{draft.status}</span>
                     </div>
-                    {draft.status !== "enrolled" && (
-                      <button onClick={() => void approve(draft)} disabled={!!working || !runId} className="btn btn-xs btn-success">
+                    {draft.status !== "enrolled" && !(draft.channel === "linkedin" && draft.status === "approved") && (
+                      <button onClick={() => void approve(draft)} disabled={!!working || (draft.channel === "email" && !runId)} className="btn btn-xs btn-success">
                         {working === `approve:${draft.id}` ? <span className="loading loading-spinner loading-xs" /> : null}
-                        Approve & start
+                        {draft.channel === "linkedin" ? "Approve for manual send" : "Approve email"}
                       </button>
                     )}
                   </div>

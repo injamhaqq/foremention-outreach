@@ -11,6 +11,23 @@ import { createHmac, timingSafeEqual } from "crypto";
  */
 
 export const UNSUBSCRIBE_PATH = "/api/unsubscribe";
+
+/**
+ * Outbound email kill switch (default OFF).
+ *
+ * Configuring the postal address + unsubscribe settings is required for the
+ * public opt-out route to work, so compliance config alone must NOT unlock
+ * sending. Every send path (sequencer, inbox reply, manual compose, send-test)
+ * additionally requires OUTREACH_EMAIL_SENDING_ENABLED to be exactly "true".
+ */
+export const EMAIL_SENDING_FLAG = "OUTREACH_EMAIL_SENDING_ENABLED";
+
+export function emailSendingEnabled(env: NodeJS.ProcessEnv = process.env): boolean {
+  return String(env[EMAIL_SENDING_FLAG] ?? "").trim().toLowerCase() === "true";
+}
+
+export const EMAIL_SENDING_DISABLED_MESSAGE =
+  `Refusing to send email: outbound email is locked. Set ${EMAIL_SENDING_FLAG}=true only after founder review.`;
 const TOKEN_VERSION = "v1";
 const MIN_SECRET_LENGTH = 16;
 

@@ -4,7 +4,13 @@ import type Database from "better-sqlite3";
 import type { Transporter } from "nodemailer";
 import type SMTPTransport from "nodemailer/lib/smtp-transport";
 import { emailTlsRejectUnauthorized } from "./tls";
-import { buildCompliantEmail, EmailComplianceError, requireEmailComplianceConfig } from "./compliance";
+import {
+  buildCompliantEmail,
+  EMAIL_SENDING_DISABLED_MESSAGE,
+  EmailComplianceError,
+  emailSendingEnabled,
+  requireEmailComplianceConfig,
+} from "./compliance";
 import { isRecipientSuppressed } from "./suppression";
 
 export interface EmailAccount {
@@ -34,7 +40,8 @@ async function defaultDb(): Promise<Database.Database> {
 }
 
 /**
- * Sends one email. FAIL CLOSED: refuses to send when the postal address /
+ * Sends one email. FAIL CLOSED: refuses to send unless
+ * OUTREACH_EMAIL_SENDING_ENABLED is exactly "true", when the postal address /
  * unsubscribe config is missing or when the recipient is on the do-not-contact
  * list. Every message gets the postal-address + one-click unsubscribe footer and
  * RFC 8058 List-Unsubscribe headers.
@@ -46,8 +53,14 @@ export async function sendEmail(
   body: string,
   options: SendEmailOptions = {},
 ): Promise<void> {
+  const env = options.env ?? process.env;
+  // 0. Outbound email is locked unless the founder explicitly unlocks it.
+  if (!emailSendingEnabled(env)) {
+    throw new EmailComplianceError("email_sending_disabled", EMAIL_SENDING_DISABLED_MESSAGE);
+  }
+
   // 1. Compliance config must be present before we even open a connection.
-  const compliance = requireEmailComplianceConfig(options.env ?? process.env);
+  const compliance = requireEmailComplianceConfig(env);
 
   // 2. Never email someone who opted out or is otherwise suppressed.
   const db = options.db ?? await defaultDb();
